@@ -1,133 +1,163 @@
-"""Tests for notifier factory."""
+"""Tests for NotifierFactory."""
 
 # Import built-in modules
 from typing import Any, Dict
 
-# Import third-party modules
 import pytest
 
 # Import local modules
-from notify_bridge.exceptions import ValidationError
+from notify_bridge.exceptions import NoSuchNotifierError, ValidationError
 from notify_bridge.factory import NotifierFactory
 from notify_bridge.types import BaseNotifier, NotificationResponse, NotificationSchema
 
 
 class TestSchema(NotificationSchema):
-    """Test notification schema."""
+    """Test schema for testing."""
 
-    webhook_url: str = "https://example.com/webhook"
-    msg_type: str = "text"
-    title: str
-    body: str
+    webhook_url: str
+    msg_type: str
 
 
 class TestNotifier(BaseNotifier):
-    """Test notifier implementation."""
+    """Test notifier for testing."""
 
     name = "test"
-    schema = TestSchema
 
-    def notify(self, notification: Dict[str, Any]) -> NotificationResponse:
-        """Send a notification."""
-        if not isinstance(notification, (dict, TestSchema)):
-            raise ValueError("Invalid notification")
-        if isinstance(notification, dict):
-            try:
-                notification = TestSchema(**notification)
-            except Exception as e:
-                raise ValueError(f"Invalid notification: {e}")
-        return NotificationResponse(True, self.name, notification.model_dump(), {"status": "sent"})
+    def validate(self, notification: Dict[str, Any]) -> NotificationSchema:
+        """Validate notification data.
 
-    async def send(self, notification: Dict[str, Any]) -> NotificationResponse:
-        """Send a notification."""
-        return self.notify(notification)
+        Args:
+            notification: Notification data to validate.
 
-    async def asend(self, notification: Dict[str, Any]) -> NotificationResponse:
-        """Send a notification asynchronously."""
-        return await self.send(notification)
+        Returns:
+            NotificationSchema: Validated notification data.
+
+        Raises:
+            ValidationError: If notification data is invalid.
+        """
+        if not isinstance(notification, dict):
+            raise ValidationError("Notification must be a dictionary")
+        if not notification.get("title"):
+            raise ValidationError("Title is required")
+        if not notification.get("body"):
+            raise ValidationError("Body is required")
+        return super().validate(notification)
+
+    def send(self, notification: NotificationSchema) -> NotificationResponse:
+        """Send a notification.
+
+        Args:
+            notification: Notification data to send.
+
+        Returns:
+            NotificationResponse: Response from the notification attempt.
+        """
+        return NotificationResponse(success=True, message="Test notification sent")
+
+    async def asend(self, notification: NotificationSchema) -> NotificationResponse:
+        """Send a notification asynchronously.
+
+        Args:
+            notification: Notification data to send.
+
+        Returns:
+            NotificationResponse: Response from the notification attempt.
+        """
+        return NotificationResponse(success=True, message="Test notification sent")
 
 
 @pytest.fixture
 def factory() -> NotifierFactory:
-    """Create a notifier factory."""
-    return NotifierFactory()
+    """Create a NotifierFactory instance for testing.
 
-
-@pytest.fixture
-def notifier() -> TestNotifier:
-    """Create a test notifier."""
-    return TestNotifier()
-
-
-def test_register_notifier(factory: NotifierFactory):
-    """Test registering a notifier."""
+    Returns:
+        NotifierFactory: Factory instance.
+    """
+    factory = NotifierFactory()
     factory.register_notifier("test", TestNotifier)
-    assert factory.get_notifier_class("test") == TestNotifier
+    return factory
 
 
-def test_unregister_notifier(factory: NotifierFactory):
-    """Test unregistering a notifier."""
-    factory.register_notifier("test", TestNotifier)
-    factory.unregister_notifier("test")
-    assert factory.get_notifier_class("test") is None
+def test_register_notifier(factory: NotifierFactory) -> None:
+    """Test registering a notifier.
 
-
-def test_get_notifier_names(factory: NotifierFactory):
-    """Test getting notifier names."""
-    factory.register_notifier("test", TestNotifier)
+    Args:
+        factory: NotifierFactory instance.
+    """
     assert "test" in factory.get_notifier_names()
 
 
-def test_get_notifier_class(factory: NotifierFactory):
-    """Test getting a notifier class."""
-    factory.register_notifier("test", TestNotifier)
+def test_unregister_notifier(factory: NotifierFactory) -> None:
+    """Test unregistering a notifier.
+
+    Args:
+        factory: NotifierFactory instance.
+    """
+    factory.unregister_notifier("test")
+    assert "test" not in factory.get_notifier_names()
+
+
+def test_get_notifier_names(factory: NotifierFactory) -> None:
+    """Test getting notifier names.
+
+    Args:
+        factory: NotifierFactory instance.
+    """
+    assert "test" in factory.get_notifier_names()
+
+
+def test_get_notifier_class(factory: NotifierFactory) -> None:
+    """Test getting a notifier class.
+
+    Args:
+        factory: NotifierFactory instance.
+    """
     assert factory.get_notifier_class("test") == TestNotifier
 
 
-def test_create_notifier(factory: NotifierFactory):
-    """Test creating a notifier."""
-    factory.register_notifier("test", TestNotifier)
+def test_create_notifier(factory: NotifierFactory) -> None:
+    """Test creating a notifier instance.
+
+    Args:
+        factory: NotifierFactory instance.
+    """
     notifier = factory.create_notifier("test")
     assert isinstance(notifier, TestNotifier)
 
 
-def test_notify_success(factory: NotifierFactory, notifier: TestNotifier):
+def test_create_notifier_invalid(factory: NotifierFactory) -> None:
+    """Test creating an invalid notifier.
+
+    Args:
+        factory: NotifierFactory instance.
+    """
+    with pytest.raises(NoSuchNotifierError):
+        factory.create_notifier("invalid")
+
+
+def test_notify_success(factory: NotifierFactory) -> None:
     """Test successful notification."""
-    factory.register_notifier("test", TestNotifier)
-    notification = TestSchema(
-        title="Test Title",
-        body="Test Body",
-        msg_type="text",
-    )
-    response = factory.notify("test", notification)
+    response = factory.notify("test", {"title": "Test", "body": "Test message"})
     assert response.success
-    assert response.notifier == "test"
+    assert response.message == "Test notification sent"
 
 
-def test_notify_validation_error(factory: NotifierFactory):
-    """Test notification with validation error."""
-    factory.register_notifier("test", TestNotifier)
+def test_notify_validation_error(factory: NotifierFactory) -> None:
+    """Test notification validation error."""
     with pytest.raises(ValidationError):
-        factory.notify("test", {"invalid_field": "Invalid"})
+        factory.notify("test", {})
 
 
 @pytest.mark.asyncio
-async def test_anotify_success(factory: NotifierFactory, notifier: TestNotifier):
+async def test_anotify_success(factory: NotifierFactory) -> None:
     """Test successful async notification."""
-    factory.register_notifier("test", TestNotifier)
-    notification = TestSchema(
-        title="Test Title",
-        body="Test Body",
-        msg_type="text",
-    )
-    response = await factory.anotify("test", notification)
+    response = await factory.anotify("test", {"title": "Test", "body": "Test message"})
     assert response.success
-    assert response.notifier == "test"
+    assert response.message == "Test notification sent"
 
 
 @pytest.mark.asyncio
-async def test_anotify_validation_error(factory: NotifierFactory):
-    """Test async notification with validation error."""
-    factory.register_notifier("test", TestNotifier)
+async def test_anotify_validation_error(factory: NotifierFactory) -> None:
+    """Test async notification validation error."""
     with pytest.raises(ValidationError):
-        await factory.anotify("test", {"invalid_field": "Invalid"})
+        await factory.anotify("test", {})
