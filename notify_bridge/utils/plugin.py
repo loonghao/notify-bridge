@@ -44,7 +44,7 @@ def load_notifier_from_entry_point(entry_point) -> Type[BaseNotifier]:
         module = importlib.import_module(module_path)
         notifier_class = getattr(module, class_name)
     except (ImportError, AttributeError) as e:
-        raise PluginError(f"Failed to import notifier class: {e}")
+        raise PluginError(f"Failed to import notifier class: {e}") from e
 
     if not issubclass(notifier_class, BaseNotifier):
         raise PluginError(f"Class {class_name} is not a subclass of BaseNotifier")

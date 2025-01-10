@@ -33,7 +33,7 @@ class NotifyBridge:
     def _load_plugins(self) -> None:
         """Load notifier plugins from entry points and built-in notifiers."""
         plugins = get_all_notifiers()
-        for name, notifier_class in plugins.items():
+        for name, _ in plugins.items():
             try:
                 config = self._config.get(name, {})
                 self._factory.create_notifier(name, **config)
