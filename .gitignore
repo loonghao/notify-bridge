@@ -22,3 +22,4 @@ target/*
 /.zip/
 /run-ide.bat
 /dist/
+/examples/.env

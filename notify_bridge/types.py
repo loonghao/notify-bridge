@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Union
 
 # Import third-party modules
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic import ValidationError as PydanticValidationError
 
 # Import local modules
@@ -16,7 +16,22 @@ from notify_bridge.exceptions import NotificationError, ValidationError
 class NotificationSchema(BaseModel):
     """Base schema for notifications."""
 
-    url: str = Field(description="url of the notification")
+    url: str = Field(description="URL for the notification")
+
+    @model_validator(mode="before")
+    @classmethod
+    def convert_webhook_url(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert webhook_url to url.
+
+        Args:
+            data: Data to validate.
+
+        Returns:
+            Dict[str, Any]: Validated data.
+        """
+        if "webhook_url" in data and "url" not in data:
+            data["url"] = data["webhook_url"]
+        return data
 
     @classmethod
     def validate_data(cls, data: Dict[str, Any]) -> "NotificationSchema":
@@ -90,7 +105,7 @@ class BaseNotifier(ABC):
         Raises:
             NotificationError: If building the payload fails.
         """
-        return {"url": notification.url}
+        return {"webhook_url": notification.url}
 
     def _build_content_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
         """Build the content payload for the API.
@@ -120,7 +135,7 @@ class BaseNotifier(ABC):
         """
         return self._build_content_payload(notification)
 
-    def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
+    def build_payload(self, notification: Union[Dict[str, Any], NotificationSchema]) -> Dict[str, Any]:
         """Build the payload for the API.
 
         Args:
@@ -132,12 +147,14 @@ class BaseNotifier(ABC):
         Raises:
             NotificationError: If building the payload fails.
         """
+        if isinstance(notification, dict):
+            notification = self.validate(notification)
         base_payload = self._build_base_payload(notification)
         content_payload = self._build_content_payload(notification)
         base_payload.update(content_payload)
         return base_payload
 
-    async def build_payload_async(self, notification: NotificationSchema) -> Dict[str, Any]:
+    async def build_payload_async(self, notification: Union[Dict[str, Any], NotificationSchema]) -> Dict[str, Any]:
         """Build the payload for the API asynchronously.
 
         Args:
@@ -149,6 +166,8 @@ class BaseNotifier(ABC):
         Raises:
             NotificationError: If building the payload fails.
         """
+        if isinstance(notification, dict):
+            notification = self.validate(notification)
         base_payload = self._build_base_payload(notification)
         content_payload = await self._build_content_payload_async(notification)
         base_payload.update(content_payload)
@@ -192,15 +211,13 @@ class BaseNotifier(ABC):
             notification = kwargs
         if isinstance(notification, dict):
             notification = self.validate(notification)
+        client = self.client or httpx.AsyncClient()
         try:
             payload = await self.build_payload_async(notification)
-            async with httpx.AsyncClient() as client:
+            async with client:
                 response = await client.post(**payload)
                 response.raise_for_status()
-                try:
-                    data = response.json()
-                except AttributeError:
-                    data = await response.json()
+                data = response.json()
                 return NotificationResponse(success=True, name=self.name, data=data)
         except Exception as e:
             raise NotificationError(str(e))

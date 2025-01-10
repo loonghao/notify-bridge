@@ -4,14 +4,15 @@
 import base64
 import hashlib
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 # Import third-party modules
 import httpx
-from pydantic import Field
+from pydantic import Field, model_validator, ValidationError
+from pydantic.error_wrappers import ValidationError as PydanticValidationError
 
 # Import local modules
-from notify_bridge.exceptions import NotificationError
+from notify_bridge.exceptions import NotificationError, ValidationError
 from notify_bridge.types import BaseNotifier, NotificationSchema
 
 
@@ -20,12 +21,32 @@ class WeComSchema(NotificationSchema):
 
     url: str = Field(..., description="WeCom webhook URL")
     msg_type: str = Field(default="text", description="Message type")
-    content: str = Field(description="Message content")
+    content: Optional[str] = Field(default=None, description="Message content")
     mentioned_list: Optional[List[str]] = Field(default=None, description="List of mentioned users")
     mentioned_mobile_list: Optional[List[str]] = Field(default=None, description="List of mentioned mobile numbers")
     articles: Optional[List[Dict[str, str]]] = Field(default=None, description="Articles for news message type")
     image_path: Optional[str] = Field(default=None, description="Path to image file")
     file_path: Optional[str] = Field(default=None, description="Path to file")
+
+    @classmethod
+    def validate_data(cls, data: Dict[str, Any]) -> "WeComSchema":
+        """Validate notification data.
+
+        Args:
+            data: Data to validate.
+
+        Returns:
+            WeComSchema: Validated notification schema.
+
+        Raises:
+            ValidationError: If validation fails.
+        """
+        if "webhook_url" in data and "url" not in data:
+            data["url"] = data["webhook_url"]
+        try:
+            return cls(**data)
+        except PydanticValidationError as e:
+            raise ValidationError(str(e))
 
 
 class WeComNotifier(BaseNotifier):
@@ -33,6 +54,20 @@ class WeComNotifier(BaseNotifier):
 
     name = "wecom"
     schema = WeComSchema
+
+    def _build_base_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Build the base payload for the WeCom API.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Base API payload.
+
+        Raises:
+            NotificationError: If building the payload fails.
+        """
+        return {"url": notification.url}
 
     def _build_content_payload(self, notification: WeComSchema) -> Dict[str, Any]:
         """Build the content payload for the WeCom API.
@@ -151,7 +186,7 @@ class WeComNotifier(BaseNotifier):
 
         return {"json": payload}
 
-    def build_payload(self, notification: WeComSchema) -> Dict[str, Any]:
+    def build_payload(self, notification: Union[Dict[str, Any], NotificationSchema]) -> Dict[str, Any]:
         """Build the payload for the WeCom API.
 
         Args:
@@ -163,9 +198,14 @@ class WeComNotifier(BaseNotifier):
         Raises:
             NotificationError: If building the payload fails.
         """
-        return {"url": notification.url, **self._build_content_payload(notification)}
+        if isinstance(notification, dict):
+            notification = self.validate(notification)
+        base_payload = self._build_base_payload(notification)
+        content_payload = self._build_content_payload(notification)
+        base_payload.update(content_payload)
+        return base_payload
 
-    async def build_payload_async(self, notification: WeComSchema) -> Dict[str, Any]:
+    async def build_payload_async(self, notification: Union[Dict[str, Any], NotificationSchema]) -> Dict[str, Any]:
         """Build the payload for the WeCom API asynchronously.
 
         Args:
@@ -177,7 +217,12 @@ class WeComNotifier(BaseNotifier):
         Raises:
             NotificationError: If building the payload fails.
         """
-        return {"url": notification.url, **await self._build_content_payload_async(notification)}
+        if isinstance(notification, dict):
+            notification = self.validate(notification)
+        base_payload = self._build_base_payload(notification)
+        content_payload = await self._build_content_payload_async(notification)
+        base_payload.update(content_payload)
+        return base_payload
 
     def _key(self, url: str) -> str:
         """Get the WeCom webhook key.

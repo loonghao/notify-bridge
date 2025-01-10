@@ -46,6 +46,7 @@ dev = [
     "isort>=5.0.0",
     "mypy>=1.0.0",
     "ruff>=0.1.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [tool.commitizen]

@@ -1,3 +1,4 @@
 nox
 pytest
 uv
+python-dotenv
