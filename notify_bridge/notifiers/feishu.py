@@ -1,27 +1,16 @@
 """Feishu notifier module."""
 
 # Import built-in modules
-import base64
-import hashlib
 import logging
-import os
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any, Dict, Optional, Union
 
 # Import third-party modules
 import httpx
-from pydantic import Field
-from pydantic import field_validator
-from pydantic import ValidationInfo
+from pydantic import Field, model_validator, ValidationError as PydanticValidationError
 
 # Import local modules
-from notify_bridge.exceptions import NotificationError
-from notify_bridge.exceptions import ValidationError
-from notify_bridge.types import BaseNotifier
-from notify_bridge.types import NotificationSchema
-
+from notify_bridge.exceptions import NotificationError, ValidationError
+from notify_bridge.types import BaseNotifier, NotificationSchema
 
 logger = logging.getLogger(__name__)
 
@@ -36,261 +25,214 @@ class FeishuSchema(NotificationSchema):
     image_path: Optional[str] = Field(default=None, description="Path to image file")
     file_path: Optional[str] = Field(default=None, description="Path to file")
 
-    @field_validator("msg_type")
+    @model_validator(mode="before")
     @classmethod
-    def validate_msg_type(cls, value: str) -> str:
-        """Validate message type.
+    def convert_fields(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert webhook_url to url and body to content.
 
         Args:
-            value: Message type.
+            data: Data to validate.
 
         Returns:
-            str: Validated message type.
+            Dict[str, Any]: Validated data.
+        """
+        if "webhook_url" in data and "url" not in data:
+            data["url"] = data["webhook_url"]
+        if "body" in data and "content" not in data:
+            data["content"] = data["body"]
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_data(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate notification data.
+
+        Args:
+            data: Data to validate.
+
+        Returns:
+            Dict[str, Any]: Validated data.
 
         Raises:
-            ValidationError: If message type is invalid.
+            ValidationError: If validation fails.
         """
+        # Convert webhook_url to url and body to content
+        if "webhook_url" in data and "url" not in data:
+            data["url"] = data["webhook_url"]
+        if "body" in data and "content" not in data:
+            data["content"] = data["body"]
+
+        # Validate message type
+        msg_type = data.get("msg_type", "text")
         valid_types = ["text", "post", "image", "file"]
-        if value not in valid_types:
-            raise ValidationError(f"Invalid message type: {value}. Must be one of: {valid_types}")
-        return value
+        if msg_type not in valid_types:
+            raise ValidationError(f"Invalid message type: {msg_type}. Must be one of: {valid_types}")
 
-    @field_validator("content")
-    @classmethod
-    def validate_content(cls, value: Optional[str], info: ValidationInfo) -> Optional[str]:
-        """Validate content.
+        # Validate content
+        content = data.get("content")
+        if msg_type in ["text", "post"] and not content:
+            data["content"] = data.get("title", "")
 
-        Args:
-            value: Content.
-            info: Validation info.
-
-        Returns:
-            Optional[str]: Validated content.
-
-        Raises:
-            ValidationError: If content is required but not provided.
-        """
-        msg_type = info.data.get("msg_type", "text")
-        if msg_type in ["text", "post"] and not value:
-            raise ValidationError("Content is required for text and post messages")
-        return value
-
-    @field_validator("image_path")
-    @classmethod
-    def validate_image_path(cls, value: Optional[str], info: ValidationInfo) -> Optional[str]:
-        """Validate image path.
-
-        Args:
-            value: Image path.
-            info: Validation info.
-
-        Returns:
-            Optional[str]: Validated image path.
-
-        Raises:
-            ValidationError: If image path is required but not provided.
-        """
-        msg_type = info.data.get("msg_type")
-        if msg_type == "image" and not value:
+        # Validate image path
+        image_path = data.get("image_path")
+        if msg_type == "image" and not image_path:
             raise ValidationError("Image path is required for image messages")
-        return value
 
-    @field_validator("file_path")
-    @classmethod
-    def validate_file_path(cls, value: Optional[str], info: ValidationInfo) -> Optional[str]:
-        """Validate file path.
-
-        Args:
-            value: File path.
-            info: Validation info.
-
-        Returns:
-            Optional[str]: Validated file path.
-
-        Raises:
-            ValidationError: If file path is required but not provided.
-        """
-        msg_type = info.data.get("msg_type")
-        if msg_type == "file" and not value:
+        # Validate file path
+        file_path = data.get("file_path")
+        if msg_type == "file" and not file_path:
             raise ValidationError("File path is required for file messages")
-        return value
+
+        return data
 
 
 class FeishuNotifier(BaseNotifier):
-    """Notifier for Feishu."""
+    """Feishu notifier."""
 
     name = "feishu"
     schema = FeishuSchema
 
-    def _build_content_payload(self, notification: FeishuSchema) -> Dict[str, Any]:
-        """Build the content payload for the Feishu API.
+    def __init__(self, **kwargs):
+        """Initialize the notifier.
+
+        Args:
+            **kwargs: Keyword arguments.
+        """
+        super().__init__(schema=FeishuSchema, **kwargs)
+
+    def _build_text_payload(self, notification: Dict[str, Any]) -> Dict[str, Any]:
+        """Build text message payload.
 
         Args:
             notification: Notification data.
 
         Returns:
-            Dict[str, Any]: Content API payload.
-
-        Raises:
-            NotificationError: If building the payload fails.
+            Dict[str, Any]: Text message payload.
         """
-        payload = {"msg_type": notification.msg_type}
-        if notification.msg_type == "text":
-            payload["content"] = {"text": notification.content}
-        elif notification.msg_type == "post":
-            payload["content"] = {
+        return {
+            "msg_type": "text",
+            "content": {
+                "text": notification.get("content", notification.get("title", ""))
+            }
+        }
+
+    def _build_post_payload(self, notification: Dict[str, Any]) -> Dict[str, Any]:
+        """Build post message payload.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Post message payload.
+        """
+        return {
+            "msg_type": "post",
+            "content": {
                 "post": {
                     "zh_cn": {
-                        "title": notification.title or "",
-                        "content": [[{"tag": "text", "text": notification.content}]],
+                        "title": notification.get("title", ""),
+                        "content": [
+                            [
+                                {
+                                    "tag": "text",
+                                    "text": notification.get("content", "")
+                                }
+                            ]
+                        ]
                     }
                 }
             }
-        elif notification.msg_type == "image":
-            if not notification.image_path or not os.path.exists(notification.image_path):
-                raise NotificationError("Image file not found")
-            with open(notification.image_path, "rb") as f:
-                content = f.read()
-                b64_content = base64.b64encode(content).decode()
-                md5_content = hashlib.md5(content).hexdigest()
-            client = self.client or httpx.Client()
-            response = client.post(
-                f"https://open.feishu.cn/open-apis/bot/v2/hook/{self._key(notification.url)}/image",
-                json={"image_type": "message", "image": b64_content},
-            )
-            response.raise_for_status()
-            data = response.json()
-            if data.get("code") != 0:
-                raise NotificationError(f"Failed to upload image: {data.get('msg')}")
-            payload["content"] = {"image_key": data["data"]["image_key"]}
-        elif notification.msg_type == "file":
-            if not notification.file_path or not os.path.exists(notification.file_path):
-                raise NotificationError("File not found")
-            with open(notification.file_path, "rb") as f:
-                files = {"file": f}
-                client = self.client or httpx.Client()
-                response = client.post(
-                    "https://open.feishu.cn/open-apis/bot/v2/hook/upload_file",
-                    files=files,
-                )
-                response.raise_for_status()
-                data = response.json()
-                if data.get("code") != 0:
-                    raise NotificationError(f"Failed to upload file: {data.get('msg')}")
-                payload["content"] = {"file_key": data["data"]["file_key"]}
-        else:
-            raise NotificationError(f"Unsupported message type: {notification.msg_type}")
+        }
 
-        return {"json": payload}
-
-    async def _build_content_payload_async(self, notification: FeishuSchema) -> Dict[str, Any]:
-        """Build the content payload for the Feishu API asynchronously.
+    def _build_image_payload(self, notification: Dict[str, Any]) -> Dict[str, Any]:
+        """Build image message payload.
 
         Args:
             notification: Notification data.
 
         Returns:
-            Dict[str, Any]: Content API payload.
-
-        Raises:
-            NotificationError: If building the payload fails.
+            Dict[str, Any]: Image message payload.
         """
-        payload = {"msg_type": notification.msg_type}
-        if notification.msg_type == "text":
-            payload["content"] = {"text": notification.content}
-        elif notification.msg_type == "post":
-            payload["content"] = {
-                "post": {
-                    "zh_cn": {
-                        "title": notification.title or "",
-                        "content": [[{"tag": "text", "text": notification.content}]],
-                    }
-                }
+        return {
+            "msg_type": "image",
+            "content": {
+                "image_key": notification.get("image_path", "")
             }
-        elif notification.msg_type == "image":
-            if not notification.image_path or not os.path.exists(notification.image_path):
-                raise NotificationError("Image file not found")
-            with open(notification.image_path, "rb") as f:
-                content = f.read()
-                b64_content = base64.b64encode(content).decode()
-                md5_content = hashlib.md5(content).hexdigest()
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"https://open.feishu.cn/open-apis/bot/v2/hook/{self._key(notification.url)}/image",
-                    json={"image_type": "message", "image": b64_content},
-                )
-                response.raise_for_status()
-                try:
-                    data = response.json()
-                except AttributeError:
-                    data = await response.json()
-                if data.get("code") != 0:
-                    raise NotificationError(f"Failed to upload image: {data.get('msg')}")
-                payload["content"] = {"image_key": data["data"]["image_key"]}
-        elif notification.msg_type == "file":
-            if not notification.file_path or not os.path.exists(notification.file_path):
-                raise NotificationError("File not found")
-            with open(notification.file_path, "rb") as f:
-                files = {"file": f}
-                async with httpx.AsyncClient() as client:
-                    response = await client.post(
-                        "https://open.feishu.cn/open-apis/bot/v2/hook/upload_file",
-                        files=files,
-                    )
-                    response.raise_for_status()
-                    try:
-                        data = response.json()
-                    except AttributeError:
-                        data = await response.json()
-                    if data.get("code") != 0:
-                        raise NotificationError(f"Failed to upload file: {data.get('msg')}")
-                    payload["content"] = {"file_key": data["data"]["file_key"]}
+        }
+
+    def _build_file_payload(self, notification: Dict[str, Any]) -> Dict[str, Any]:
+        """Build file message payload.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: File message payload.
+        """
+        return {
+            "msg_type": "file",
+            "content": {
+                "file_key": notification.get("file_path", "")
+            }
+        }
+
+    def _build_payload(self, notification: Dict[str, Any]) -> Dict[str, Any]:
+        """Build payload for the notification.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Notification payload.
+
+        Raises:
+            NotificationError: If message type is invalid.
+        """
+        msg_type = notification.get("msg_type", "text")
+        if msg_type == "text":
+            payload = self._build_text_payload(notification)
+        elif msg_type == "post":
+            payload = self._build_post_payload(notification)
+        elif msg_type == "image":
+            payload = self._build_image_payload(notification)
+        elif msg_type == "file":
+            payload = self._build_file_payload(notification)
         else:
-            raise NotificationError(f"Unsupported message type: {notification.msg_type}")
+            raise NotificationError(f"Invalid message type: {msg_type}")
 
-        return {"json": payload}
+        return {
+            "url": notification.get("url", ""),
+            "json": payload
+        }
 
-    def build_payload(self, notification: FeishuSchema) -> Dict[str, Any]:
-        """Build the payload for the Feishu API.
-
-        Args:
-            notification: Notification data.
-
-        Returns:
-            Dict[str, Any]: API payload.
-
-        Raises:
-            NotificationError: If building the payload fails.
-        """
-        return {"url": notification.url, **self._build_content_payload(notification)}
-
-    async def build_payload_async(self, notification: FeishuSchema) -> Dict[str, Any]:
-        """Build the payload for the Feishu API asynchronously.
+    def build_payload(self, notification: Union[Dict[str, Any], NotificationSchema]) -> Dict[str, Any]:
+        """Build payload for the notification.
 
         Args:
             notification: Notification data.
 
         Returns:
-            Dict[str, Any]: API payload.
+            Dict[str, Any]: Notification payload.
 
         Raises:
-            NotificationError: If building the payload fails.
+            NotificationError: If message type is invalid.
         """
-        return {"url": notification.url, **await self._build_content_payload_async(notification)}
+        if isinstance(notification, NotificationSchema):
+            notification = notification.model_dump()
+        return self._build_payload(notification)
 
-    def _key(self, url: str) -> str:
-        """Get the Feishu webhook key.
+    async def build_payload_async(self, notification: Union[Dict[str, Any], NotificationSchema]) -> Dict[str, Any]:
+        """Build payload for the notification asynchronously.
 
         Args:
-            url: Webhook URL.
+            notification: Notification data.
 
         Returns:
-            str: Webhook key.
+            Dict[str, Any]: Notification payload.
 
         Raises:
-            NotificationError: If no webhook URL is provided.
+            NotificationError: If message type is invalid.
         """
-        try:
-            return url.split("hook/")[1]
-        except IndexError:
-            raise NotificationError("Invalid webhook URL format")
+        if isinstance(notification, NotificationSchema):
+            notification = notification.model_dump()
+        return self._build_payload(notification)

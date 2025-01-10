@@ -116,10 +116,10 @@ class NotifyBridge:
         return self._factory.create_notifier(name, **kwargs)
 
     def notify(
-        self,
-        notifier_name: str,
-        notification: Optional[Union[NotificationSchema, Dict[str, Any]]] = None,
-        **kwargs: Any,
+            self,
+            notifier_name: str,
+            notification: Optional[Union[NotificationSchema, Dict[str, Any]]] = None,
+            **kwargs: Any,
     ) -> NotificationResponse:
         """Send a notification synchronously.
 
@@ -134,13 +134,15 @@ class NotifyBridge:
         Raises:
             NoSuchNotifierError: If the specified notifier is not found.
         """
-        return self._factory.notify(notifier_name, notification, client=self._sync_client, **kwargs)
+        if notification is None:
+            notification = kwargs
+        return self._factory.notify(notifier_name, notification=notification, client=self._sync_client)
 
     async def anotify(
-        self,
-        notifier_name: str,
-        notification: Optional[Union[NotificationSchema, Dict[str, Any]]] = None,
-        **kwargs: Any,
+            self,
+            notifier_name: str,
+            notification: Optional[Union[NotificationSchema, Dict[str, Any]]] = None,
+            **kwargs: Any,
     ) -> NotificationResponse:
         """Send a notification asynchronously.
 
@@ -155,7 +157,9 @@ class NotifyBridge:
         Raises:
             NoSuchNotifierError: If the specified notifier is not found.
         """
-        return await self._factory.anotify(notifier_name, notification, client=self._async_client, **kwargs)
+        if notification is None:
+            notification = kwargs
+        return await self._factory.anotify(notifier_name, notification=notification, client=self._async_client)
 
     def get_registered_notifiers(self) -> List[str]:
         """Get a list of registered notifier names.
