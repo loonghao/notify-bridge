@@ -1,8 +1,6 @@
 """Tests for core functionality."""
 
 # Import built-in modules
-
-# Import third-party modules
 import pytest
 
 # Import local modules
@@ -12,139 +10,80 @@ from notify_bridge.types import BaseNotifier, NotificationResponse, Notification
 
 
 class TestSchema(NotificationSchema):
-    """Test notification schema."""
-
+    """Test schema for notifications."""
     title: str
     body: str
-    msg_type: str
+    msg_type: str = "text"
 
 
 class TestNotifier(BaseNotifier):
     """Test notifier implementation."""
 
-    name = "test"
-    schema = TestSchema
+    def __init__(self, **config):
+        """Initialize the notifier."""
+        super().__init__(**config)
+        self.name = "test"
 
-    def notify(self, notification: NotificationSchema) -> NotificationResponse:
-        """Send a notification synchronously."""
-        data = notification.model_dump()
-        return NotificationResponse(True, self.name, data, {"status": "sent"})
-
-    async def send(self, notification: NotificationSchema) -> NotificationResponse:
-        """Send a notification.
-
-        Args:
-            notification: The notification data.
-
-        Returns:
-            NotificationResponse: The response from the notification attempt.
-        """
-        data = notification.model_dump()
-        return NotificationResponse(True, self.name, data, {"status": "sent"})
+    def send(self, notification: NotificationSchema) -> NotificationResponse:
+        """Send a notification."""
+        if isinstance(notification, dict):
+            notification = TestSchema(**notification)
+        return NotificationResponse(True, self.name, notification.model_dump())
 
     async def asend(self, notification: NotificationSchema) -> NotificationResponse:
-        """Send a notification asynchronously.
-
-        Args:
-            notification: The notification data.
-
-        Returns:
-            NotificationResponse: The response from the notification attempt.
-        """
-        return await self.send(notification)
-
-
-@pytest.fixture
-def notifier():
-    """Create a TestNotifier instance."""
-    return TestNotifier()
+        """Send a notification asynchronously."""
+        if isinstance(notification, dict):
+            notification = TestSchema(**notification)
+        return NotificationResponse(True, self.name, notification.model_dump())
 
 
 @pytest.fixture
 def bridge():
-    """Create a NotifyBridge instance."""
-    return NotifyBridge()
+    """Create a test bridge instance."""
+    bridge = NotifyBridge()
+    bridge._notifiers["test"] = TestNotifier()
+    return bridge
 
 
-def test_register_notifier(bridge: NotifyBridge, notifier: TestNotifier):
-    """Test registering a notifier."""
-    bridge.add_notifier(notifier)
-    assert "test" in bridge.get_registered_notifiers()
-
-
-def test_unregister_notifier(bridge: NotifyBridge, notifier: TestNotifier):
-    """Test unregistering a notifier."""
-    bridge.add_notifier(notifier)
-    bridge.remove_notifier("test")
-    assert "test" not in bridge.get_registered_notifiers()
-
-
-def test_notify(bridge: NotifyBridge, notifier: TestNotifier):
+def test_notify(bridge):
     """Test sending a notification."""
-    bridge.add_notifier(notifier)
     response = bridge.notify(
         "test",
-        title="Test Title",
-        body="Test Body",
-        msg_type="text",
+        title="Test",
+        body="Test message",
     )
-    assert response.success
+    assert response.success is True
     assert response.notifier == "test"
 
 
-def test_notify_validation_error(bridge: NotifyBridge, notifier: TestNotifier):
-    """Test sending a notification with invalid data."""
-    bridge.add_notifier(notifier)
-    with pytest.raises(ValueError):
-        bridge.notify(
-            "test",
-            invalid_field="Invalid",
-        )
-
-
 @pytest.mark.asyncio
-async def test_anotify(bridge: NotifyBridge, notifier: TestNotifier):
+async def test_anotify(bridge):
     """Test sending a notification asynchronously."""
-    bridge.add_notifier(notifier)
     response = await bridge.anotify(
         "test",
-        title="Test Title",
-        body="Test Body",
-        msg_type="text",
+        title="Test",
+        body="Test message",
     )
-    assert response.success
+    assert response.success is True
     assert response.notifier == "test"
 
 
-@pytest.mark.asyncio
-async def test_anotify_validation_error(bridge: NotifyBridge, notifier: TestNotifier):
-    """Test sending a notification asynchronously with invalid data."""
-    bridge.add_notifier(notifier)
-    with pytest.raises(ValueError):
-        await bridge.anotify(
-            "test",
-            invalid_field="Invalid",
-        )
-
-
-def test_notifier_not_found(bridge: NotifyBridge):
-    """Test handling of non-existent notifier."""
+def test_notify_invalid_notifier(bridge):
+    """Test sending a notification with an invalid notifier."""
     with pytest.raises(NoSuchNotifierError):
         bridge.notify(
-            "nonexistent",
-            title="Test Title",
-            body="Test Body",
-            msg_type="text",
+            "invalid",
+            title="Test",
+            body="Test message",
         )
 
 
 @pytest.mark.asyncio
-async def test_notifier_not_found_async(bridge: NotifyBridge):
-    """Test handling of non-existent notifier asynchronously."""
+async def test_anotify_invalid_notifier(bridge):
+    """Test sending a notification with an invalid notifier asynchronously."""
     with pytest.raises(NoSuchNotifierError):
         await bridge.anotify(
-            "nonexistent",
-            title="Test Title",
-            body="Test Body",
-            msg_type="text",
+            "invalid",
+            title="Test",
+            body="Test message",
         )

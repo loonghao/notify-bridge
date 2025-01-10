@@ -76,8 +76,8 @@ def test_get_notifiers_from_entry_points():
             if isinstance(notification, dict):
                 try:
                     notification = TestSchema(**notification)
-                except Exception as e:
-                    raise ValueError(f"Invalid notification: {e}")
+                except Exception as err:
+                    raise ValueError(f"Invalid notification: {err}") from err
             return NotificationResponse(True, self.name, notification.model_dump(), {"status": "sent"})
 
         async def send(self, notification: Dict[str, Any]) -> NotificationResponse:

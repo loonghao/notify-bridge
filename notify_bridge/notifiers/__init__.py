@@ -2,5 +2,6 @@
 
 # Import local modules
 from notify_bridge.notifiers.feishu import FeishuNotifier
+from notify_bridge.notifiers.wecom import WeComNotifier
 
-__all__ = ["FeishuNotifier"]
+__all__ = ["FeishuNotifier", "WeComNotifier"]
