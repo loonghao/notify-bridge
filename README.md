@@ -1,5 +1,20 @@
 # notify-bridge
 
+<div align="center">
+
+[![Python Version](https://img.shields.io/pypi/pyversions/notify-bridge)](https://img.shields.io/pypi/pyversions/notify-bridge)
+[![Nox](https://img.shields.io/badge/%F0%9F%A6%8A-Nox-D85E00.svg)](https://github.com/wntrblm/nox)
+[![PyPI Version](https://img.shields.io/pypi/v/notify-bridge?color=green)](https://pypi.org/project/notify-bridge/)
+[![Downloads](https://static.pepy.tech/badge/notify-bridge)](https://pepy.tech/project/notify-bridge)
+[![Downloads](https://static.pepy.tech/badge/notify-bridge/month)](https://pepy.tech/project/notify-bridge)
+[![Downloads](https://static.pepy.tech/badge/notify-bridge/week)](https://pepy.tech/project/notify-bridge)
+[![License](https://img.shields.io/pypi/l/notify-bridge)](https://pypi.org/project/notify-bridge/)
+[![PyPI Format](https://img.shields.io/pypi/format/notify-bridge)](https://pypi.org/project/notify-bridge/)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/loonghao/notify-bridge/graphs/commit-activity)
+![Codecov](https://img.shields.io/codecov/c/github/loonghao/notify-bridge)
+</div>
+
+
 A flexible notification bridge for sending messages to various platforms.
 
 ## Features
@@ -51,7 +66,7 @@ async def send_async():
 
 - [x] Feishu (飞书)
 - [ ] DingTalk (钉钉)
-- [ ] WeChat Work (企业微信)
+- [x] WeChat Work (企业微信)
 - [ ] Email
 - [ ] Slack
 - [ ] Discord
@@ -91,17 +106,71 @@ my_notifier = "my_package.my_module:MyNotifier"
 
 ## Configuration
 
-Each notifier has its own configuration schema. Here's an example for Feishu:
+Each notifier has its own configuration schema. Here are some examples:
 
+### Feishu Example
 ```python
+# Send a text message
 bridge.notify(
     "feishu",
     webhook_url="YOUR_WEBHOOK_URL",
     title="Message Title",
     body="Message Body",
-    msg_type="interactive",  # or "text"
+    msg_type="text"
+)
+
+# Send an interactive (markdown) message with @mentions
+bridge.notify(
+    "feishu",
+    webhook_url="YOUR_WEBHOOK_URL",
+    title="Message Title",
+    body="Message Body",
+    msg_type="interactive",
     at_all=True,  # @所有人
     at_users=["user1", "user2"]  # @特定用户
+)
+```
+
+### WeChat Work Example
+```python
+# Send a text message
+bridge.notify(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    title="Message Title",
+    body="Message Body",
+    msg_type="text",
+    mentioned_list=["user1", "user2"],  # Optional: mention users by ID
+    mentioned_mobile_list=["13800138000"]  # Optional: mention users by mobile
+)
+
+# Send a markdown message
+bridge.notify(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    title="Message Title",
+    body="**Bold Text**\n> Quote\n[Link](https://example.com)",
+    msg_type="markdown"
+)
+
+# Send an image
+bridge.notify(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    title="Image Message",
+    body="Image Description",
+    msg_type="image",
+    file_path="path/to/image.jpg"  # or use file_url="https://example.com/image.jpg"
+)
+
+# Send a file
+bridge.notify(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    title="File Message",
+    body="File Description",
+    msg_type="file",
+    file_path="path/to/document.pdf"  # or use file_url="https://example.com/document.pdf"
 )
 ```
 
