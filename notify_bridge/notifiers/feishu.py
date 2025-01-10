@@ -93,7 +93,7 @@ class FeishuNotifier(BaseNotifier):
 
             return NotificationResponse(True, self.name, data)
         except Exception as e:
-            raise NotificationError(f"Failed to send Feishu notification: {str(e)}")
+            raise NotificationError(f"Failed to send Feishu notification: {str(e)}") from e
 
     async def asend(self, notification: NotificationSchema) -> NotificationResponse:
         """Send a notification asynchronously.
@@ -126,7 +126,7 @@ class FeishuNotifier(BaseNotifier):
 
             return NotificationResponse(True, self.name, data)
         except Exception as e:
-            raise NotificationError(f"Failed to send Feishu notification: {str(e)}")
+            raise NotificationError(f"Failed to send Feishu notification: {str(e)}") from e
 
     def close(self) -> None:
         """Close any resources held by the notifier."""

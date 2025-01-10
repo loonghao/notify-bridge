@@ -89,11 +89,14 @@ exclude = '''
 
 [tool.isort]
 profile = "black"
-atomic = true
+multi_line_output = 3
 include_trailing_comma = true
+force_grid_wrap = 0
 lines_after_imports = 2
-lines_between_types = 1
 use_parentheses = true
+lines_between_types = 1
+ensure_newline_before_comments = true
+line_length = 120
 src_paths = ["notify_bridge", "tests"]
 filter_files = true
 known_first_party = "notify_bridge"
