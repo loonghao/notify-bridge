@@ -48,10 +48,16 @@ def get_notifiers_from_entry_points() -> Dict[str, Type[BaseNotifier]]:
     """
     notifiers = {}
     try:
-        for ep in metadata.entry_points().get('notify_bridge.notifiers', []):
+        entry_points = metadata.entry_points()
+        if hasattr(entry_points, 'select'):  # Python 3.10+
+            notifier_eps = entry_points.select(group='notify_bridge.notifiers')
+        else:  # Python 3.9 and below
+            notifier_eps = entry_points.get('notify_bridge.notifiers', [])
+            
+        for ep in notifier_eps:
             try:
                 notifier_class = load_notifier(f"{ep.module}:{ep.attr}")
-                notifiers[ep.name.lower()] = notifier_class
+                notifiers[notifier_class.name.lower()] = notifier_class
             except PluginError as e:
                 logger.warning(f"Failed to load plugin {ep.name}: {e}")
     except Exception as e:
@@ -99,7 +105,7 @@ def load_plugins(plugin_dir: str) -> Dict[str, Type[BaseNotifier]]:
                 module = importlib.import_module(module_name)
                 for name, obj in inspect.getmembers(module):
                     if inspect.isclass(obj) and issubclass(obj, BaseNotifier) and obj != BaseNotifier:
-                        plugins[name.lower()] = obj
+                        plugins[obj.name.lower()] = obj
             except ImportError as e:
                 logger.error(f"Failed to import plugin {module_name}: {e}")
     sys.path.pop(0)

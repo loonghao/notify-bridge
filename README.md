@@ -1,4 +1,5 @@
 # notify-bridge
+A flexible notification bridge for sending messages to various platforms.
 
 <div align="center">
 

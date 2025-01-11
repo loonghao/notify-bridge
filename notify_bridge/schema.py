@@ -114,6 +114,7 @@ class WebhookSchema(NotificationSchema):
             
         Raises:
             ValueError: If method is invalid
+
         """
         methods = {"GET", "POST", "PUT", "PATCH", "DELETE"}
         if v.upper() not in methods:
@@ -125,6 +126,7 @@ class WebhookSchema(NotificationSchema):
         
         Returns:
             Dict[str, Any]: Webhook payload
+
         """
         payload = self.payload.copy()
         if self.content:
@@ -157,6 +159,7 @@ class EmailSchema(NotificationSchema):
         
         Returns:
             Dict[str, Any]: Email payload
+
         """
         payload = super().to_payload()
         if self.html_content:
@@ -187,6 +190,7 @@ class AuthSchema(BaseModel):
     """Base schema for authentication.
     
     This schema is used to define authentication parameters.
+
     """
     auth_type: AuthType = Field(
         default=AuthType.NONE,

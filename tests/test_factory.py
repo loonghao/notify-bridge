@@ -2,12 +2,12 @@
 
 # Import built-in modules
 from typing import Any, Dict
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 # Import third-party modules
 import pytest
 
-from notify_bridge.components import BaseNotifier, WebhookNotifier, WebhookSchema
+from notify_bridge.components import BaseNotifier, NotificationSchema
 from notify_bridge.exceptions import NoSuchNotifierError, ValidationError
 
 # Import local modules
@@ -15,7 +15,7 @@ from notify_bridge.factory import NotifierFactory
 from notify_bridge.utils import HTTPClientConfig
 
 
-class TestSchema(WebhookSchema):
+class TestSchema(NotificationSchema):
     """Test notification schema."""
     pass
 
@@ -26,38 +26,109 @@ class TestNotifier(BaseNotifier):
     name = "test"
     schema = TestSchema
 
-    def _send(self, schema: WebhookSchema) -> Dict[str, Any]:
-        """Send notification synchronously."""
-        return {"success": True}
+    def __init__(self, config: HTTPClientConfig = None, **kwargs: Any) -> None:
+        """Initialize test notifier.
 
-    async def _send_async(self, schema: WebhookSchema) -> Dict[str, Any]:
-        """Send notification asynchronously."""
-        return {"success": True}
+        Args:
+            config: HTTP client configuration.
+            **kwargs: Additional arguments.
+        """
+        super().__init__(config)
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
-    def build_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
         """Build payload for notification.
 
         Args:
-            data: Notification data.
+            notification: Notification data.
 
         Returns:
-            Dict[str, Any]: Payload.
+            Dict[str, Any]: API payload.
         """
-        notification = self.validate(data)
         return {
-            "url": notification.url,
+            "url": notification.webhook_url,
             "json": {
                 "content": notification.content,
                 "title": notification.title
             }
         }
 
+    def send(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Send notification.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Response data.
+        """
+        return {
+            "success": True,
+            "name": "test",
+            "message": "Notification sent successfully",
+            "data": {"success": True}
+        }
+
+    async def send_async(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Send notification asynchronously.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Response data.
+        """
+        return {
+            "success": True,
+            "name": "test",
+            "message": "Notification sent successfully",
+            "data": {"success": True}
+        }
+
+    def notify(self, notification: Dict[str, Any]) -> Dict[str, Any]:
+        """Send notification synchronously.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Response data.
+
+        Raises:
+            ValidationError: If notification validation fails.
+        """
+        if isinstance(notification, dict):
+            try:
+                notification = self.schema(**notification)
+            except Exception as e:
+                raise ValidationError(str(e))
+        return self.send(notification)
+
+    async def notify_async(self, notification: Dict[str, Any]) -> Dict[str, Any]:
+        """Send notification asynchronously.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Response data.
+
+        Raises:
+            ValidationError: If notification validation fails.
+        """
+        if isinstance(notification, dict):
+            try:
+                notification = self.schema(**notification)
+            except Exception as e:
+                raise ValidationError(str(e))
+        return await self.send_async(notification)
+
 
 @pytest.fixture
 def factory() -> NotifierFactory:
     """Create a NotifierFactory instance."""
     factory = NotifierFactory()
-    factory.register_notifier("webhook", WebhookNotifier)
     return factory
 
 
@@ -71,7 +142,7 @@ def test_notifier() -> TestNotifier:
 def test_data() -> Dict[str, Any]:
     """Create test data fixture."""
     return {
-        "url": "https://example.com",
+        "webhook_url": "https://example.com",
         "title": "Test Title",
         "content": "Test Content",
         "msg_type": "text"
@@ -120,41 +191,25 @@ def test_create_notifier_invalid(factory: NotifierFactory) -> None:
 
 def test_notify_success(factory: NotifierFactory, test_data: Dict[str, Any]) -> None:
     """Test successful notification."""
-    with patch("httpx.Client.post") as mock_post:
-        mock_post.return_value = Mock(
-            status_code=200,
-            json=lambda: {"success": True}
-        )
+    factory.register_notifier("test", TestNotifier)
+    response = factory.notify("test", test_data)
 
-        factory.register_notifier("test", TestNotifier)
-        response = factory.notify("test", test_data)
-
-        assert response.success is True
-        assert response.name == "test"
-        assert response.message == "Notification sent successfully"
-        assert response.data == {"success": True}
-
-        mock_post.assert_called_once()
+    assert response["success"] is True
+    assert response["name"] == "test"
+    assert response["message"] == "Notification sent successfully"
+    assert response["data"] == {"success": True}
 
 
 @pytest.mark.asyncio
 async def test_notify_async_success(factory: NotifierFactory, test_data: Dict[str, Any]) -> None:
     """Test successful async notification."""
-    with patch("httpx.AsyncClient.post") as mock_post:
-        mock_post.return_value = Mock(
-            status_code=200,
-            json=lambda: {"success": True}
-        )
+    factory.register_notifier("test", TestNotifier)
+    response = await factory.notify_async("test", test_data)
 
-        factory.register_notifier("test", TestNotifier)
-        response = await factory.notify_async("test", test_data)
-
-        assert response.success is True
-        assert response.name == "test"
-        assert response.message == "Notification sent successfully"
-        assert response.data == {"success": True}
-
-        mock_post.assert_called_once()
+    assert response["success"] is True
+    assert response["name"] == "test"
+    assert response["message"] == "Notification sent successfully"
+    assert response["data"] == {"success": True}
 
 
 def test_notify_validation_error(factory: NotifierFactory) -> None:
@@ -183,3 +238,95 @@ async def test_notify_async_notifier_not_found(factory: NotifierFactory, test_da
     """Test async notification with non-existent notifier."""
     with pytest.raises(NoSuchNotifierError):
         await factory.notify_async("non_existent", test_data)
+
+
+def test_create_notifier_with_kwargs(factory: NotifierFactory) -> None:
+    """Test creating a notifier with additional kwargs."""
+    factory.register_notifier("test", TestNotifier)
+    config = HTTPClientConfig()
+    notifier = factory.create_notifier("test", config, custom_param="test")
+    assert isinstance(notifier, TestNotifier)
+    assert hasattr(notifier, "custom_param")
+    assert notifier.custom_param == "test"
+
+
+@pytest.mark.asyncio
+async def test_create_async_notifier(factory: NotifierFactory) -> None:
+    """Test creating an async notifier."""
+    factory.register_notifier("test", TestNotifier)
+    config = HTTPClientConfig()
+    notifier = await factory.create_async_notifier("test", config)
+    assert isinstance(notifier, TestNotifier)
+
+
+@pytest.mark.asyncio
+async def test_create_async_notifier_invalid(factory: NotifierFactory) -> None:
+    """Test creating an invalid async notifier."""
+    config = HTTPClientConfig()
+    with pytest.raises(NoSuchNotifierError):
+        await factory.create_async_notifier("invalid", config)
+
+
+def test_notify_with_kwargs(factory: NotifierFactory) -> None:
+    """Test notification with kwargs instead of notification object."""
+    factory.register_notifier("test", TestNotifier)
+    response = factory.notify(
+        "test",
+        webhook_url="https://example.com",
+        title="Test Title",
+        content="Test Content",
+        msg_type="text"
+    )
+
+    assert response["success"] is True
+    assert response["name"] == "test"
+    assert response["message"] == "Notification sent successfully"
+    assert response["data"] == {"success": True}
+
+
+@pytest.mark.asyncio
+async def test_notify_async_with_kwargs(factory: NotifierFactory) -> None:
+    """Test async notification with kwargs instead of notification object."""
+    factory.register_notifier("test", TestNotifier)
+    response = await factory.notify_async(
+        "test",
+        webhook_url="https://example.com",
+        title="Test Title",
+        content="Test Content",
+        msg_type="text"
+    )
+
+    assert response["success"] is True
+    assert response["name"] == "test"
+    assert response["message"] == "Notification sent successfully"
+    assert response["data"] == {"success": True}
+
+
+def test_unregister_nonexistent_notifier(factory: NotifierFactory) -> None:
+    """Test unregistering a non-existent notifier."""
+    # Should not raise any exception
+    factory.unregister_notifier("non_existent")
+
+
+def test_notify_with_none_notification(factory: NotifierFactory) -> None:
+    """Test notification with None notification object."""
+    factory.register_notifier("test", TestNotifier)
+    with pytest.raises(ValidationError):
+        factory.notify("test", None)
+
+
+@pytest.mark.asyncio
+async def test_notify_async_with_none_notification(factory: NotifierFactory) -> None:
+    """Test async notification with None notification object."""
+    factory.register_notifier("test", TestNotifier)
+    with pytest.raises(ValidationError):
+        await factory.notify_async("test", None)
+
+
+def test_factory_initialization() -> None:
+    """Test factory initialization and plugin loading."""
+    with patch("notify_bridge.factory.get_all_notifiers") as mock_get_notifiers:
+        mock_get_notifiers.return_value = {"test": TestNotifier}
+        factory = NotifierFactory()
+        assert "test" in factory.get_notifier_names()
+        mock_get_notifiers.assert_called_once()

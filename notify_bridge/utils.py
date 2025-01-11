@@ -9,12 +9,13 @@ import logging.handlers
 import os
 import time
 from functools import wraps
-from typing import Any, Dict, Optional, Union
+from types import TracebackType
+from typing import Any, Dict, Optional, Type, Union
 
 import httpx
 from pydantic import BaseModel, field_validator
 
-from .exceptions import NotificationError
+from notify_bridge.exceptions import NotificationError
 
 
 class HTTPClientConfig(BaseModel):
@@ -87,6 +88,7 @@ class HTTPClientConfig(BaseModel):
             
         Raises:
             ValueError: If retry_delay is not positive
+
         """
         if v <= 0:
             raise ValueError("Retry delay must be positive")
@@ -96,36 +98,27 @@ class HTTPClientConfig(BaseModel):
 class HTTPClient:
     """HTTP client with retries."""
 
-    def __init__(self, config: HTTPClientConfig, client: Optional[httpx.Client] = None) -> None:
+    def __init__(self, config: HTTPClientConfig) -> None:
         """Initialize HTTP client.
         
         Args:
             config: HTTP client configuration
-            client: Optional httpx client instance for testing
         """
         self._config = config
         self._client = None
 
-    def __enter__(self):
+    def __enter__(self) -> "HTTPClient":
         """Enter context manager."""
-        if not self._client:
-            client_kwargs = {
-                "timeout": self._config.timeout,
-                "verify": self._config.verify_ssl,
-                "headers": self._config.headers,
-            }
-            if self._config.proxies:
-                client_kwargs["proxy"] = next(iter(self._config.proxies.values()))
-
-            self._client = httpx.Client(**client_kwargs)
+        self._client = httpx.Client(
+            timeout=self._config.timeout,
+            verify=self._config.verify_ssl,
+            headers=self._config.headers,
+            proxy=self._config.proxies if self._config.proxies else None
+        )
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> None:
         """Exit context manager."""
-        self.close()
-
-    def close(self):
-        """Close the client."""
         if self._client:
             self._client.close()
             self._client = None
@@ -137,10 +130,10 @@ class HTTPClient:
             method: HTTP method
             url: Request URL
             **kwargs: Additional arguments to pass to httpx.request
-            
+
         Returns:
             Response object
-            
+
         Raises:
             RequestError: If request fails after max retries
         """
@@ -152,15 +145,9 @@ class HTTPClient:
 
         for _ in range(self._config.max_retries):
             try:
-                with httpx.Client(
-                    timeout=self._config.timeout,
-                    verify=self._config.verify_ssl,
-                    headers=self._config.headers,
-                    proxies=self._config.proxies if self._config.proxies else None
-                ) as client:
-                    response = client.request(method, url, verify=verify, **kwargs)
-                    response.raise_for_status()
-                    return response
+                response = self._client.request(method, url, verify=verify, **kwargs)
+                response.raise_for_status()
+                return response
             except httpx.RequestError as e:
                 last_error = e
                 time.sleep(self._config.retry_delay)
@@ -169,54 +156,46 @@ class HTTPClient:
                 raise NotificationError.from_exception(e, "http_client")
 
         if last_error:
-            raise last_error
+            raise NotificationError.from_exception(last_error, "http_client")
+        raise NotificationError("Unknown error in http_client")
 
 
 class AsyncHTTPClient:
     """Async HTTP client with retries."""
 
-    def __init__(self, config: HTTPClientConfig, client: Optional[httpx.AsyncClient] = None) -> None:
+    def __init__(self, config: HTTPClientConfig) -> None:
         """Initialize async HTTP client.
         
         Args:
             config: HTTP client configuration
-            client: Optional httpx async client instance for testing
         """
         self._config = config
         self._client = None
 
-    async def __aenter__(self):
-        """Enter async context manager."""
-        if not self._client:
-            client_kwargs = {
-                "timeout": self._config.timeout,
-                "verify": self._config.verify_ssl,
-                "headers": self._config.headers,
-            }
-            if self._config.proxies:
-                client_kwargs["proxy"] = next(iter(self._config.proxies.values()))
-
-            self._client = httpx.AsyncClient(**client_kwargs)
+    async def __aenter__(self) -> "AsyncHTTPClient":
+        """Enter context manager."""
+        self._client = httpx.AsyncClient(
+            timeout=self._config.timeout,
+            verify=self._config.verify_ssl,
+            headers=self._config.headers,
+            proxy=self._config.proxies if self._config.proxies else None
+        )
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Exit async context manager."""
-        await self.aclose()
-
-    async def aclose(self):
-        """Close the client."""
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> None:
+        """Exit context manager."""
         if self._client:
             await self._client.aclose()
             self._client = None
 
     async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         """Make async HTTP request with retries.
-        
+
         Args:
             method: HTTP method
             url: Request URL
             **kwargs: Additional arguments to pass to httpx.request
-            
+
         Returns:
             Response object
             
@@ -231,7 +210,7 @@ class AsyncHTTPClient:
         for _ in range(self._config.max_retries):
             try:
                 response = await self._client.request(method, url, **kwargs)
-                response.raise_for_status()
+                await response.raise_for_status()
                 return response
             except httpx.RequestError as e:
                 last_error = e
@@ -241,7 +220,8 @@ class AsyncHTTPClient:
                 raise NotificationError.from_exception(e, "http_client")
 
         if last_error:
-            raise last_error
+            raise NotificationError.from_exception(last_error, "http_client")
+        raise NotificationError("Unknown error in http_client")
 
 
 class LogConfig(BaseModel):

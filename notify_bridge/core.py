@@ -3,14 +3,13 @@
 This module provides the main functionality for sending notifications.
 """
 
-import asyncio
 import logging
 from typing import Any, Dict, List, Optional, Type
 
 import httpx
 
 from notify_bridge.components import BaseNotifier
-from notify_bridge.exceptions import NoSuchNotifierError
+from notify_bridge.exceptions import ConfigurationError, NoSuchNotifierError
 from notify_bridge.factory import NotifierFactory
 from notify_bridge.utils import HTTPClientConfig
 
@@ -24,13 +23,24 @@ class NotifyBridge:
     through different notifiers.
     """
 
-    def __init__(self, config: Optional[HTTPClientConfig] = None):
+    def __init__(self, config: Optional[Any] = None):
         """Initialize NotifyBridge.
         
         Args:
             config: HTTP client configuration
+            
+        Raises:
+            ConfigurationError: If config is invalid
         """
-        self._config = config or HTTPClientConfig()
+        if config is None:
+            self._config = HTTPClientConfig()
+        elif isinstance(config, HTTPClientConfig):
+            self._config = config
+        else:
+            raise ConfigurationError(
+                "Invalid configuration. Expected HTTPClientConfig or None.",
+                config_value=config
+            )
         self._factory = NotifierFactory()
         self._sync_client = None
         self._async_client = None
@@ -116,7 +126,15 @@ class NotifyBridge:
         Args:
             name: Name of the notifier
             notifier_cls: Notifier class to register
+            
+        Raises:
+            TypeError: If notifier_cls is not a subclass of BaseNotifier
         """
+        if not isinstance(notifier_cls, type) or not issubclass(notifier_cls, BaseNotifier):
+            raise TypeError(
+                f"Invalid notifier class: {notifier_cls}. "
+                "Expected a subclass of BaseNotifier."
+            )
         self._factory.register_notifier(name, notifier_cls)
         logger.debug(f"Registered notifier: {name}")
 
@@ -129,7 +147,7 @@ class NotifyBridge:
         return list(self._factory.get_notifier_names())
 
     @property
-    def notifiers(self) -> List[BaseNotifier]:
+    def notifiers(self) -> List[str]:
         return self.get_registered_notifiers()
 
     def get_notifier(self, name: str) -> BaseNotifier:
@@ -146,12 +164,12 @@ class NotifyBridge:
         """
         return self.create_notifier(name)
 
-    def send(self, notifier_name: str, **kwargs: Any) -> Dict[str, Any]:
+    def send(self, notifier_name: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Send notification.
         
         Args:
             notifier_name: Name of the notifier
-            **kwargs: Additional arguments to pass to the notifier
+            data: Notification data
             
         Returns:
             Dict[str, Any]: Response data
@@ -160,15 +178,15 @@ class NotifyBridge:
             NoSuchNotifierError: If notifier is not found
         """
         notifier = self.get_notifier(notifier_name)
-        notification = notifier.schema_class(**kwargs)
-        return asyncio.run(notifier.send_async(notification))
+        notification = notifier.schema_class(**data)
+        return notifier.send(notification)
 
-    async def send_async(self, notifier_name: str, **kwargs: Any) -> Dict[str, Any]:
+    async def send_async(self, notifier_name: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Send notification asynchronously.
         
         Args:
             notifier_name: Name of the notifier
-            **kwargs: Additional arguments to pass to the notifier
+            data: Notification data
             
         Returns:
             Dict[str, Any]: Response data
@@ -177,5 +195,5 @@ class NotifyBridge:
             NoSuchNotifierError: If notifier is not found
         """
         notifier = self.get_notifier(notifier_name)
-        notification = notifier.schema_class(**kwargs)
+        notification = notifier.schema_class(**data)
         return await notifier.send_async(notification)

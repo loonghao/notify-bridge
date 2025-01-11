@@ -5,7 +5,6 @@ from pathlib import Path
 
 # Import third-party modules
 import pytest
-from pydantic import ValidationError
 
 # Import local modules
 from notify_bridge.components import MessageType, NotificationError
@@ -251,4 +250,4 @@ def test_unsupported_message_type():
     )
     with pytest.raises(NotificationError) as exc_info:
         notifier.build_payload(notification)
-    assert "Unsupported message type: file" in str(exc_info.value)
+    assert f"Unsupported message type: {MessageType.FILE}" in str(exc_info.value)
