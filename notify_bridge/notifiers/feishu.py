@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional
 
 # Import third-party modules
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 # Import local modules
 from notify_bridge.components import BaseNotifier, MessageType, NotificationError, NotificationSchema

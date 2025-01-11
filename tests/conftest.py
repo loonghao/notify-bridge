@@ -69,7 +69,7 @@ class TestNotifier(BaseNotifier):
         
         Args:
             notification: Notification data.
-        
+
         Returns:
             Dict[str, Any]: API payload.
         """

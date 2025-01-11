@@ -3,20 +3,14 @@
 # Import built-in modules
 import base64
 from pathlib import Path
+
 import pytest
-from typing import Dict, Any
 
 # Import third-party modules
-from pydantic import ValidationError
-
 # Import local modules
 from notify_bridge.components import MessageType, NotificationError
-from notify_bridge.notifiers.feishu import (
-    CardConfig,
-    CardHeader,
-    FeishuNotifier,
-    FeishuSchema
-)
+from notify_bridge.notifiers.feishu import CardConfig, CardHeader, FeishuNotifier, FeishuSchema
+
 
 def test_card_config():
     """Test CardConfig model."""
@@ -89,12 +83,12 @@ def test_build_post_payload():
 def test_build_image_payload(tmp_path: Path):
     """Test image message payload building."""
     notifier = FeishuNotifier()
-    
+
     # Create a test image file
     image_path = tmp_path / "test.png"
     image_content = b"test image content"
     image_path.write_bytes(image_content)
-    
+
     notification = FeishuSchema(
         webhook_url="https://test.url",
         msg_type=MessageType.IMAGE,
@@ -120,18 +114,18 @@ def test_build_image_payload(tmp_path: Path):
 def test_build_file_payload(tmp_path: Path):
     """Test file message payload building."""
     notifier = FeishuNotifier()
-    
+
     # Create a test file
     file_path = tmp_path / "test.txt"
     file_path.write_text("test content")
-    
+
     notification = FeishuSchema(
         webhook_url="https://test.url",
         msg_type=MessageType.FILE,
         file_path=str(file_path),
         token="test_token"
     )
-    
+
     # Test file upload not implemented
     with pytest.raises(NotificationError) as exc_info:
         notifier.build_payload(notification)
@@ -160,7 +154,7 @@ def test_build_interactive_payload():
     notifier = FeishuNotifier()
     card_header = CardHeader(title="Test Header")
     card_elements = [{"tag": "div", "text": "Test Element"}]
-    
+
     notification = FeishuSchema(
         webhook_url="https://test.url",
         msg_type=MessageType.INTERACTIVE,
@@ -264,7 +258,7 @@ def test_invalid_schema():
 def test_unsupported_message_type():
     """Test unsupported message type handling."""
     notifier = FeishuNotifier()
-    
+
     # Create a notification with unsupported message type
     notification = FeishuSchema(
         webhook_url="https://test.url",
@@ -272,4 +266,4 @@ def test_unsupported_message_type():
     )
     with pytest.raises(NotificationError) as exc_info:
         notifier.build_payload(notification)
-    assert "Unsupported message type: markdown" in str(exc_info.value)
+    assert f"Unsupported message type: {MessageType.MARKDOWN}" in str(exc_info.value)

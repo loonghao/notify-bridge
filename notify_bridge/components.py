@@ -4,7 +4,6 @@ This module contains the base notifier classes and core functionality.
 """
 
 # Import built-in modules
-import asyncio
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, ClassVar, Dict, Optional, Type, Union
@@ -102,6 +101,25 @@ class AbstractNotifier(ABC):
                 f"Supported types: {', '.join(t.value for t in self.supported_types)}"
             )
 
+    def validate(self, data: Dict[str, Any]) -> NotificationSchema:
+        """Validate notification data.
+
+        Args:
+            data: Notification data.
+
+        Returns:
+            NotificationSchema: Validated notification schema.
+
+        Raises:
+            NotificationError: If validation fails.
+        """
+        try:
+            if isinstance(data, NotificationSchema):
+                return data
+            return self.schema_class.model_validate(data)
+        except Exception as e:
+            raise NotificationError(f"Invalid notification data: {str(e)}")
+
     @abstractmethod
     def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
         """Build notification payload.
@@ -117,25 +135,11 @@ class AbstractNotifier(ABC):
         """
         pass
 
-    def send(self, notification: NotificationSchema) -> Dict[str, Any]:
+    def send(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Send notification.
 
         Args:
-            notification: Notification data.
-
-        Returns:
-            Dict[str, Any]: Response data.
-
-        Raises:
-            NotificationError: If notification fails.
-        """
-        return asyncio.run(self.send_async(notification))
-
-    async def send_async(self, notification: NotificationSchema) -> Dict[str, Any]:
-        """Send notification asynchronously.
-
-        Args:
-            notification: Notification data.
+            data: Notification data.
 
         Returns:
             Dict[str, Any]: Response data.
@@ -144,6 +148,59 @@ class AbstractNotifier(ABC):
             NotificationError: If notification fails.
         """
         try:
+            notification = self.validate(data)
+            self._validate_message_type(notification.msg_type)
+            payload = self.build_payload(notification)
+
+            if not notification.webhook_url:
+                raise NotificationError("webhook_url is required")
+
+            with self._http_client as client:
+                response = client.request(
+                    method="POST",
+                    url=notification.webhook_url,
+                    headers=notification.headers,
+                    json=payload
+                )
+                status_code = response.status_code
+                try:
+                    response.raise_for_status()
+                    response_data = response.json()
+                    return NotificationResponse(
+                        success=True,
+                        name=self.name,
+                        message="Notification sent successfully",
+                        data=response_data
+                    ).model_dump()
+                except Exception as e:
+                    return NotificationResponse(
+                        success=False,
+                        name=self.name,
+                        message=f"Request failed with status {status_code}: {str(e)}",
+                        data=None
+                    ).model_dump()
+        except Exception as e:
+            return NotificationResponse(
+                success=False,
+                name=self.name,
+                message=f"Failed to send notification: {str(e)}",
+                data=None
+            ).model_dump()
+
+    async def send_async(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Send notification asynchronously.
+
+        Args:
+            data: Notification data.
+
+        Returns:
+            Dict[str, Any]: Response data.
+
+        Raises:
+            NotificationError: If notification fails.
+        """
+        try:
+            notification = self.validate(data)
             self._validate_message_type(notification.msg_type)
             payload = self.build_payload(notification)
 
@@ -161,15 +218,19 @@ class AbstractNotifier(ABC):
                 try:
                     response.raise_for_status()
                     response_data = await response.json()
-                except Exception:
-                    response_data = None
-
-                return NotificationResponse(
-                    success=200 <= status_code < 400,
-                    name=self.name,
-                    message="Notification sent successfully" if 200 <= status_code < 400 else f"Request failed with status {status_code}",
-                    data=response_data
-                ).model_dump()
+                    return NotificationResponse(
+                        success=True,
+                        name=self.name,
+                        message="Notification sent successfully",
+                        data=response_data
+                    ).model_dump()
+                except Exception as e:
+                    return NotificationResponse(
+                        success=False,
+                        name=self.name,
+                        message=f"Request failed with status {status_code}: {str(e)}",
+                        data=None
+                    ).model_dump()
         except Exception as e:
             return NotificationResponse(
                 success=False,
@@ -199,3 +260,162 @@ class BaseNotifier(AbstractNotifier):
                 }
             }
         raise NotificationError(f"Unsupported message type: {notification.msg_type}")
+
+
+class WebhookNotifier(BaseNotifier):
+    """Webhook notifier implementation."""
+
+    name = "webhook"
+
+    def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Build webhook notification payload.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: API payload.
+        """
+        return notification.to_payload()
+
+
+class EmailSchema(NotificationSchema):
+    """Email notification schema."""
+    subject: str = Field(..., description="Email subject")
+    from_email: str = Field(..., description="Sender email address")
+    to_emails: list[str] = Field(..., description="List of recipient email addresses")
+    html_content: Optional[str] = Field(None, description="HTML content")
+
+
+class EmailNotifier(AbstractNotifier):
+    """Email notifier implementation."""
+
+    name = "email"
+    schema_class = EmailSchema
+    supported_types = {MessageType.TEXT}
+
+    def build_payload(self, notification: EmailSchema) -> Dict[str, Any]:
+        """Build email notification payload.
+
+        Args:
+            notification: Email notification data.
+
+        Returns:
+            Dict[str, Any]: API payload.
+        """
+        notification = self.validate(notification)
+        payload = {
+            "subject": notification.subject,
+            "from_email": notification.from_email,
+            "to_emails": notification.to_emails,
+            "content": notification.content,
+            "title": notification.title,
+            "webhook_url": notification.webhook_url
+        }
+        if notification.html_content:
+            payload["html_content"] = notification.html_content
+        return payload
+
+    def send(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Send email notification.
+
+        Args:
+            data: Email notification data.
+
+        Returns:
+            Dict[str, Any]: Response data.
+
+        Raises:
+            NotificationError: If notification fails.
+        """
+        try:
+            notification = self.validate(data)
+            self._validate_message_type(notification.msg_type)
+            payload = self.build_payload(notification)
+
+            if not notification.webhook_url:
+                raise NotificationError("webhook_url is required")
+
+            with self._http_client as client:
+                response = client.request(
+                    method="POST",
+                    url=notification.webhook_url,
+                    headers=notification.headers,
+                    json=payload
+                )
+                status_code = response.status_code
+                try:
+                    response.raise_for_status()
+                    response_data = response.json()
+                    return NotificationResponse(
+                        success=True,
+                        name=self.name,
+                        message="Email sent successfully",
+                        data=response_data
+                    ).model_dump()
+                except Exception as e:
+                    return NotificationResponse(
+                        success=False,
+                        name=self.name,
+                        message=f"Request failed with status {status_code}: {str(e)}",
+                        data=None
+                    ).model_dump()
+        except Exception as e:
+            return NotificationResponse(
+                success=False,
+                name=self.name,
+                message=f"Failed to send email: {str(e)}",
+                data=None
+            ).model_dump()
+
+    async def send_async(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Send email notification asynchronously.
+
+        Args:
+            data: Email notification data.
+
+        Returns:
+            Dict[str, Any]: Response data.
+
+        Raises:
+            NotificationError: If notification fails.
+        """
+        try:
+            notification = self.validate(data)
+            self._validate_message_type(notification.msg_type)
+            payload = self.build_payload(notification)
+
+            if not notification.webhook_url:
+                raise NotificationError("webhook_url is required")
+
+            async with self._async_http_client as client:
+                response = await client.request(
+                    method="POST",
+                    url=notification.webhook_url,
+                    headers=notification.headers,
+                    json=payload
+                )
+                status_code = response.status_code
+                try:
+                    response.raise_for_status()
+                    response_data = await response.json()
+                    return NotificationResponse(
+                        success=True,
+                        name=self.name,
+                        message="Email sent successfully",
+                        data=response_data
+                    ).model_dump()
+                except Exception as e:
+                    return NotificationResponse(
+                        success=False,
+                        name=self.name,
+                        message=f"Request failed with status {status_code}: {str(e)}",
+                        data=None
+                    ).model_dump()
+        except Exception as e:
+            return NotificationResponse(
+                success=False,
+                name=self.name,
+                message=f"Failed to send email: {str(e)}",
+                data=None
+            ).model_dump()

@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from notify_bridge.components import MessageType, NotificationError
 from notify_bridge.notifiers.github import GitHubNotifier, GitHubSchema
 
+
 def test_github_schema_validation():
     """Test GitHub schema validation."""
     # Test valid schema
@@ -48,7 +49,7 @@ def test_github_headers():
     notifier = GitHubNotifier()
     token = "test-token"
     headers = notifier._get_headers(token)
-    
+
     assert headers["Accept"] == "application/vnd.github+json"
     assert headers["Authorization"] == f"Bearer {token}"
     assert headers["X-GitHub-Api-Version"] == "2022-11-28"
@@ -56,7 +57,7 @@ def test_github_headers():
 def test_github_build_payload():
     """Test GitHub payload building."""
     notifier = GitHubNotifier()
-    
+
     # Test with minimal data
     minimal_data = {
         "owner": "test-owner",
@@ -67,13 +68,13 @@ def test_github_build_payload():
     }
     notification = GitHubSchema(**minimal_data)
     payload = notifier.build_payload(notification)
-    
+
     assert payload["title"] == "Test Issue"
     assert payload["body"] == "Test content"
     assert "labels" not in payload
     assert "assignees" not in payload
     assert "milestone" not in payload
-    
+
     # Test with all optional fields
     full_data = {
         "owner": "test-owner",
@@ -87,7 +88,7 @@ def test_github_build_payload():
     }
     notification = GitHubSchema(**full_data)
     payload = notifier.build_payload(notification)
-    
+
     assert payload["title"] == "Test Issue"
     assert payload["body"] == "Test content"
     assert payload["labels"] == ["bug"]
@@ -110,6 +111,6 @@ def test_github_webhook_url():
     }
     notification = GitHubSchema(**data)
     notifier.build_payload(notification)
-    
+
     expected_url = "https://api.github.com/repos/test-owner/test-repo/issues"
     assert notification.webhook_url == expected_url

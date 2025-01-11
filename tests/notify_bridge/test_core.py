@@ -2,30 +2,75 @@
 
 # Import built-in modules
 from typing import Any, Dict
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 # Import third-party modules
 import httpx
 import pytest
+from pydantic import ValidationError as PydanticValidationError
+from pydantic_core import ErrorDetails
 
 # Import local modules
+from notify_bridge.components import BaseNotifier
 from notify_bridge.core import NotifyBridge
-from notify_bridge.exceptions import NoSuchNotifierError
-from notify_bridge.types import BaseNotifier, NotificationResponse
+from notify_bridge.exceptions import ConfigurationError, NoSuchNotifierError, NotificationError
+from notify_bridge.schema import NotificationSchema
+from notify_bridge.utils import HTTPClientConfig
 
 
-class MockNotifier(BaseNotifier):
+class TestSchema(NotificationSchema):
+    """Test schema for testing."""
+
+    webhook_url: str
+    title: str
+    content: str
+    msg_type: str = "text"
+
+
+class TestNotifier(BaseNotifier):
     """Mock notifier for testing."""
 
-    name = "mock"
+    schema_class = TestSchema
 
-    def notify(self, notification: Dict[str, Any]) -> NotificationResponse:
-        """Mock notify method."""
-        return NotificationResponse(success=True, name=self.name, data=notification)
+    def __init__(self, **kwargs):
+        """Initialize test notifier."""
+        super().__init__(**kwargs)
 
-    async def notify_async(self, notification: Dict[str, Any]) -> NotificationResponse:
-        """Mock async notify method."""
-        return NotificationResponse(success=True, name=self.name, data=notification)
+    def send(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Mock send method."""
+        return {
+            "success": True,
+            "name": "test",
+            "message": "Notification sent successfully",
+            "data": notification.model_dump()
+        }
+
+    async def send_async(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Mock async send method."""
+        return {
+            "success": True,
+            "name": "test",
+            "message": "Notification sent successfully",
+            "data": notification.model_dump()
+        }
+
+
+class ErrorNotifier(BaseNotifier):
+    """Mock notifier that raises errors."""
+
+    schema_class = TestSchema
+
+    def __init__(self, **kwargs):
+        """Initialize error notifier."""
+        super().__init__(**kwargs)
+
+    def send(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Mock send method that raises an error."""
+        raise NotificationError("Failed to send notification")
+
+    async def send_async(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Mock async send method that raises an error."""
+        raise NotificationError("Failed to send notification")
 
 
 @pytest.fixture
@@ -33,22 +78,24 @@ def mock_factory():
     """Create a mock factory."""
     with patch("notify_bridge.core.NotifierFactory") as mock:
         mock_instance = mock.return_value
-        mock_instance.get_notifier_class.return_value = MockNotifier
-        mock_instance.create_notifier.return_value = MockNotifier()
-        mock_instance.notify.return_value = NotificationResponse(success=True, name="mock", data={})
-        mock_instance.anotify = AsyncMock(return_value=NotificationResponse(success=True, name="mock", data={}))
-        mock_instance.get_notifier_names.return_value = {"mock": MockNotifier}
+        mock_instance.get_notifier_class.return_value = TestNotifier
+        mock_instance.create_notifier.return_value = TestNotifier()
+        mock_instance.get_notifier_names.return_value = {"test": TestNotifier}
         yield mock_instance
 
 
 def test_init():
     """Test initialization."""
     bridge = NotifyBridge()
-    assert bridge._config == {}
+    assert isinstance(bridge._config, HTTPClientConfig)
 
-    config = {"test": "config"}
+    config = HTTPClientConfig(timeout=10.0)
     bridge = NotifyBridge(config)
     assert bridge._config == config
+
+    # Test with invalid config
+    with pytest.raises(ConfigurationError):
+        NotifyBridge({"invalid": "config"})
 
 
 def test_context_manager():
@@ -73,75 +120,112 @@ async def test_async_context_manager():
 def test_get_notifier_class(mock_factory):
     """Test getting notifier class."""
     bridge = NotifyBridge()
-    notifier_class = bridge.get_notifier_class("mock")
-    assert notifier_class == MockNotifier
-    mock_factory.get_notifier_class.assert_called_once_with("mock")
+    notifier_class = bridge.get_notifier_class("test")
+    assert notifier_class == TestNotifier
+    mock_factory.get_notifier_class.assert_called_once_with("test")
 
 
 def test_create_notifier(mock_factory):
     """Test creating notifier."""
     bridge = NotifyBridge()
-    with bridge:
-        notifier = bridge.create_notifier("mock")
-        assert isinstance(notifier, MockNotifier)
-        mock_factory.create_notifier.assert_called_once()
-        assert "client" in mock_factory.create_notifier.call_args[1]
+    notifier = bridge.create_notifier("test")
+    assert isinstance(notifier, TestNotifier)
+    mock_factory.create_notifier.assert_called_once_with("test", config=bridge._config)
 
 
 @pytest.mark.asyncio
 async def test_create_async_notifier(mock_factory):
     """Test creating async notifier."""
     bridge = NotifyBridge()
-    async with bridge:
-        notifier = await bridge.create_async_notifier("mock")
-        assert isinstance(notifier, MockNotifier)
-        mock_factory.create_notifier.assert_called_once()
-        assert "client" in mock_factory.create_notifier.call_args[1]
+    notifier = await bridge.create_async_notifier("test")
+    assert isinstance(notifier, TestNotifier)
+    mock_factory.create_notifier.assert_called_once_with("test", config=bridge._config)
 
 
-def test_notify(mock_factory):
-    """Test notification."""
+def test_register_notifier(mock_factory):
+    """Test registering notifier."""
     bridge = NotifyBridge()
-    with bridge:
-        # Test with notification object
-        notification = {"test": "data"}
-        response = bridge.notify("mock", notification)
-        assert response.success is True
-        assert response.name == "mock"
-        mock_factory.notify.assert_called_with("mock", notification=notification, client=bridge._sync_client)
+    bridge.register_notifier("test", TestNotifier)
+    mock_factory.register_notifier.assert_called_once_with("test", TestNotifier)
 
-        # Test with kwargs
-        response = bridge.notify("mock", test="data")
-        assert response.success is True
-        assert response.name == "mock"
-        mock_factory.notify.assert_called_with("mock", notification={"test": "data"}, client=bridge._sync_client)
-
-
-@pytest.mark.asyncio
-async def test_anotify(mock_factory):
-    """Test async notification."""
-    bridge = NotifyBridge()
-    async with bridge:
-        # Test with notification object
-        notification = {"test": "data"}
-        response = await bridge.anotify("mock", notification)
-        assert response.success is True
-        assert response.name == "mock"
-        mock_factory.anotify.assert_called_with("mock", notification=notification, client=bridge._async_client)
-
-        # Test with kwargs
-        response = await bridge.anotify("mock", test="data")
-        assert response.success is True
-        assert response.name == "mock"
-        mock_factory.anotify.assert_called_with("mock", notification={"test": "data"}, client=bridge._async_client)
+    # Test registering invalid notifier
+    mock_factory.register_notifier.side_effect = TypeError("Invalid notifier class")
+    with pytest.raises(TypeError):
+        bridge.register_notifier("test", object)
 
 
 def test_get_registered_notifiers(mock_factory):
     """Test getting registered notifiers."""
     bridge = NotifyBridge()
     notifiers = bridge.get_registered_notifiers()
-    assert notifiers == ["mock"]
+    assert notifiers == ["test"]
     mock_factory.get_notifier_names.assert_called_once()
+
+
+def test_notifiers_property(mock_factory):
+    """Test notifiers property."""
+    bridge = NotifyBridge()
+    assert bridge.notifiers == ["test"]
+    mock_factory.get_notifier_names.assert_called_once()
+
+
+def test_get_notifier(mock_factory):
+    """Test getting notifier."""
+    bridge = NotifyBridge()
+    notifier = bridge.get_notifier("test")
+    assert isinstance(notifier, TestNotifier)
+    mock_factory.create_notifier.assert_called_once_with("test", config=bridge._config)
+
+
+def test_send(mock_factory):
+    """Test sending notification."""
+    bridge = NotifyBridge()
+    test_data = {
+        "webhook_url": "https://example.com",
+        "title": "Test Title",
+        "content": "Test Content",
+        "msg_type": "text"
+    }
+    response = bridge.send("test", test_data)
+    assert response["success"] is True
+    assert response["name"] == "test"
+    assert response["message"] == "Notification sent successfully"
+    assert response["data"]["webhook_url"] == "https://example.com"
+
+    # Test sending with invalid data
+    with pytest.raises(PydanticValidationError):
+        bridge.send("test", {"invalid_field": "invalid"})
+
+    # Test sending with error notifier
+    mock_factory.create_notifier.return_value = ErrorNotifier()
+    with pytest.raises(NotificationError):
+        bridge.send("test", test_data)
+
+
+@pytest.mark.asyncio
+async def test_send_async(mock_factory):
+    """Test sending notification asynchronously."""
+    bridge = NotifyBridge()
+    test_data = {
+        "webhook_url": "https://example.com",
+        "title": "Test Title",
+        "content": "Test Content",
+        "msg_type": "text"
+    }
+    response = await bridge.send_async("test", test_data)
+    assert response["success"] is True
+    assert response["name"] == "test"
+    assert response["message"] == "Notification sent successfully"
+    assert response["data"]["webhook_url"] == "https://example.com"
+
+    # Test sending with invalid data
+    with pytest.raises(PydanticValidationError):
+        await bridge.send_async("test", {"invalid_field": "invalid"})
+
+    # Test sending with error notifier
+    mock_factory.create_notifier.return_value = ErrorNotifier()
+    with pytest.raises(NotificationError):
+        await bridge.send_async("test", test_data)
 
 
 def test_error_handling(mock_factory):
@@ -150,28 +234,52 @@ def test_error_handling(mock_factory):
 
     # Test notifier not found
     mock_factory.get_notifier_class.return_value = None
+    with pytest.raises(NoSuchNotifierError):
+        bridge.get_notifier_class("nonexistent")
+
+    # Test notification error
     mock_factory.create_notifier.side_effect = NoSuchNotifierError("Notifier nonexistent not found")
     with pytest.raises(NoSuchNotifierError):
         bridge.create_notifier("nonexistent")
 
-    # Test notification error
-    mock_factory.notify.side_effect = Exception("Test error")
-    with pytest.raises(Exception, match="Test error"):
-        bridge.notify("mock", test="data")
+    # Test validation error
+    mock_factory.get_notifier_class.side_effect = None  # Reset side effect
+    mock_factory.get_notifier_class.return_value = TestNotifier
+    error = ErrorDetails(type="missing", loc=("field",), input="invalid", msg="Field required")
+    mock_factory.create_notifier.side_effect = PydanticValidationError.from_exception_data(
+        "Invalid notification data",
+        [error]
+    )
+    with pytest.raises(PydanticValidationError):
+        bridge.create_notifier("test")
 
 
 @pytest.mark.asyncio
-async def test_async_error_handling(mock_factory):
+async def test_async_error_handling():
     """Test async error handling."""
     bridge = NotifyBridge()
 
-    # Test notifier not found
-    mock_factory.get_notifier_class.return_value = None
-    mock_factory.create_notifier.side_effect = NoSuchNotifierError("Notifier nonexistent not found")
-    with pytest.raises(NoSuchNotifierError):
-        await bridge.create_async_notifier("nonexistent")
+    with patch.object(bridge._factory, '_notifiers', {}):
+        # Test notifier not found
+        with pytest.raises(NoSuchNotifierError):
+            await bridge.create_async_notifier("nonexistent")
 
-    # Test notification error
-    mock_factory.anotify.side_effect = Exception("Test error")
-    with pytest.raises(Exception, match="Test error"):
-        await bridge.anotify("mock", test="data")
+        # Register test notifier for validation error test
+        bridge._factory._notifiers = {"test": TestNotifier}
+
+        # Test validation error with invalid data
+        with pytest.raises(PydanticValidationError) as exc_info:
+            await bridge.send_async("test", {"invalid_field": "invalid"})
+        assert "invalid_field" in str(exc_info.value)
+
+        # Replace with error notifier for notification error test
+        bridge._factory._notifiers["test"] = ErrorNotifier
+        
+        # Test notification error with valid data but error notifier
+        with pytest.raises(NotificationError) as exc_info:
+            await bridge.send_async("test", {
+                "webhook_url": "https://example.com",
+                "title": "Test",
+                "content": "Test"
+            })
+        assert "Failed to send notification" in str(exc_info.value)
