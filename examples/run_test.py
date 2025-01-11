@@ -6,6 +6,7 @@ import os
 # Import third-party modules
 from dotenv import load_dotenv
 from run_feishu import run_feishu
+from run_github import run_github
 from run_notify import run_notify
 from run_wecom import run_wecom
 
@@ -27,7 +28,7 @@ def main():
     run_wecom()
     run_feishu()
     run_notify()
-    # run_github()
+    run_github()
 
 
 if __name__ == "__main__":

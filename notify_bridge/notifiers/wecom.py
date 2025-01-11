@@ -7,19 +7,30 @@ This module provides the WeCom (WeChat Work) notification implementation.
 import base64
 import logging
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any
+from typing import ClassVar
+from typing import Dict
+from typing import List
+from typing import Optional
 
 # Import third-party modules
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel
+from pydantic import Field
+from pydantic import field_validator
 
 # Import local modules
-from notify_bridge.components import BaseNotifier, MessageType, NotificationError, NotificationSchema
+from notify_bridge.components import BaseNotifier
+from notify_bridge.components import MessageType
+from notify_bridge.components import NotificationError
+from notify_bridge.components import NotificationSchema
+
 
 logger = logging.getLogger(__name__)
 
 
 class Article(BaseModel):
     """Article schema for WeCom news message."""
+
     title: str = Field(..., description="Article title")
     description: Optional[str] = Field(None, description="Article description")
     url: str = Field(..., description="Article URL")
@@ -27,29 +38,21 @@ class Article(BaseModel):
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
 
 class WeComSchema(NotificationSchema):
     """Schema for WeCom notifications."""
-    webhook_url: str = Field(..., description="Webhook URL", alias="url")
-    content: Optional[str] = Field(None, description="Message content")
-    mentioned_list: Optional[List[str]] = Field(
-        default_factory=list,
-        description="List of mentioned users"
-    )
+
+    webhook_url: str = Field(..., description="Webhook URL", alias="base_url")
+    content: Optional[str] = Field(None, description="Message content", alias="message")
+    mentioned_list: Optional[List[str]] = Field(default_factory=list, description="List of mentioned users")
     mentioned_mobile_list: Optional[List[str]] = Field(
-        default_factory=list,
-        description="List of mentioned mobile numbers"
+        default_factory=list, description="List of mentioned mobile numbers"
     )
-    image_path: Optional[str] = Field(
-        None,
-        description="Path to image file"
-    )
-    articles: Optional[List[Article]] = Field(
-        default_factory=list,
-        description="Articles for news message type"
-    )
+    image_path: Optional[str] = Field(None, description="Path to image file")
+    articles: Optional[List[Article]] = Field(default_factory=list, description="Articles for news message type")
 
     @field_validator("content")
     @classmethod
@@ -65,6 +68,7 @@ class WeComSchema(NotificationSchema):
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
 
@@ -77,7 +81,7 @@ class WeComNotifier(BaseNotifier):
         MessageType.TEXT,
         MessageType.MARKDOWN,
         MessageType.IMAGE,
-        MessageType.NEWS
+        MessageType.NEWS,
     }
 
     def _encode_image(self, image_path: str) -> tuple[str, str]:
@@ -97,7 +101,9 @@ class WeComNotifier(BaseNotifier):
             raise NotificationError(f"Image file not found: {image_path}")
 
         try:
+            # Import built-in modules
             import hashlib
+
             with open(image_path, "rb") as f:
                 content = f.read()
                 md5 = hashlib.md5(content).hexdigest()
@@ -126,8 +132,8 @@ class WeComNotifier(BaseNotifier):
             "text": {
                 "content": notification.content,
                 "mentioned_list": notification.mentioned_list,
-                "mentioned_mobile_list": notification.mentioned_mobile_list
-            }
+                "mentioned_mobile_list": notification.mentioned_mobile_list,
+            },
         }
 
     def _build_markdown_payload(self, notification: WeComSchema) -> Dict[str, Any]:
@@ -145,12 +151,7 @@ class WeComNotifier(BaseNotifier):
         if not notification.content:
             raise NotificationError("content is required for markdown messages")
 
-        return {
-            "msgtype": "markdown",
-            "markdown": {
-                "content": notification.content
-            }
-        }
+        return {"msgtype": "markdown", "markdown": {"content": notification.content}}
 
     def _build_image_payload(self, notification: WeComSchema) -> Dict[str, Any]:
         """Build image message payload.
@@ -165,13 +166,7 @@ class WeComNotifier(BaseNotifier):
             raise NotificationError("image_path is required for image message")
 
         base64_data, md5 = self._encode_image(notification.image_path)
-        return {
-            "msgtype": "image",
-            "image": {
-                "base64": base64_data,
-                "md5": md5
-            }
-        }
+        return {"msgtype": "image", "image": {"base64": base64_data, "md5": md5}}
 
     def _build_news_payload(self, notification: WeComSchema) -> Dict[str, Any]:
         """Build news message payload.
@@ -187,16 +182,11 @@ class WeComNotifier(BaseNotifier):
 
         return {
             "msgtype": "news",
-            "news": {
-                "articles": [
-                    article.model_dump(exclude_none=True)
-                    for article in notification.articles
-                ]
-            },
+            "news": {"articles": [article.model_dump(exclude_none=True) for article in notification.articles]},
             "text": {
                 "mentioned_list": notification.mentioned_list,
-                "mentioned_mobile_list": notification.mentioned_mobile_list
-            }
+                "mentioned_mobile_list": notification.mentioned_mobile_list,
+            },
         }
 
     def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:

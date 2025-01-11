@@ -1,22 +1,25 @@
 """Tests for NotifierFactory."""
 
 # Import built-in modules
-from typing import Any, Dict
+from typing import Any
+from typing import Dict
 from unittest.mock import patch
 
 # Import third-party modules
 import pytest
 
-from notify_bridge.components import BaseNotifier, NotificationSchema
-from notify_bridge.exceptions import NoSuchNotifierError, ValidationError
-
 # Import local modules
+from notify_bridge.components import BaseNotifier
+from notify_bridge.components import NotificationSchema
+from notify_bridge.exceptions import NoSuchNotifierError
+from notify_bridge.exceptions import ValidationError
 from notify_bridge.factory import NotifierFactory
 from notify_bridge.utils import HTTPClientConfig
 
 
 class TestSchema(NotificationSchema):
     """Test notification schema."""
+
     pass
 
 
@@ -46,13 +49,7 @@ class TestNotifier(BaseNotifier):
         Returns:
             Dict[str, Any]: API payload.
         """
-        return {
-            "url": notification.webhook_url,
-            "json": {
-                "content": notification.content,
-                "title": notification.title
-            }
-        }
+        return {"url": notification.webhook_url, "json": {"content": notification.content, "title": notification.title}}
 
     def send(self, notification: NotificationSchema) -> Dict[str, Any]:
         """Send notification.
@@ -63,12 +60,7 @@ class TestNotifier(BaseNotifier):
         Returns:
             Dict[str, Any]: Response data.
         """
-        return {
-            "success": True,
-            "name": "test",
-            "message": "Notification sent successfully",
-            "data": {"success": True}
-        }
+        return {"success": True, "name": "test", "message": "Notification sent successfully", "data": {"success": True}}
 
     async def send_async(self, notification: NotificationSchema) -> Dict[str, Any]:
         """Send notification asynchronously.
@@ -79,12 +71,7 @@ class TestNotifier(BaseNotifier):
         Returns:
             Dict[str, Any]: Response data.
         """
-        return {
-            "success": True,
-            "name": "test",
-            "message": "Notification sent successfully",
-            "data": {"success": True}
-        }
+        return {"success": True, "name": "test", "message": "Notification sent successfully", "data": {"success": True}}
 
     def notify(self, notification: Dict[str, Any]) -> Dict[str, Any]:
         """Send notification synchronously.
@@ -141,12 +128,7 @@ def test_notifier() -> TestNotifier:
 @pytest.fixture
 def test_data() -> Dict[str, Any]:
     """Create test data fixture."""
-    return {
-        "webhook_url": "https://example.com",
-        "title": "Test Title",
-        "content": "Test Content",
-        "msg_type": "text"
-    }
+    return {"webhook_url": "https://example.com", "title": "Test Title", "content": "Test Content", "msg_type": "text"}
 
 
 def test_register_notifier(factory: NotifierFactory) -> None:
@@ -271,11 +253,7 @@ def test_notify_with_kwargs(factory: NotifierFactory) -> None:
     """Test notification with kwargs instead of notification object."""
     factory.register_notifier("test", TestNotifier)
     response = factory.notify(
-        "test",
-        webhook_url="https://example.com",
-        title="Test Title",
-        content="Test Content",
-        msg_type="text"
+        "test", webhook_url="https://example.com", title="Test Title", content="Test Content", msg_type="text"
     )
 
     assert response["success"] is True
@@ -289,11 +267,7 @@ async def test_notify_async_with_kwargs(factory: NotifierFactory) -> None:
     """Test async notification with kwargs instead of notification object."""
     factory.register_notifier("test", TestNotifier)
     response = await factory.notify_async(
-        "test",
-        webhook_url="https://example.com",
-        title="Test Title",
-        content="Test Content",
-        msg_type="text"
+        "test", webhook_url="https://example.com", title="Test Title", content="Test Content", msg_type="text"
     )
 
     assert response["success"] is True

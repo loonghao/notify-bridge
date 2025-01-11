@@ -2,8 +2,8 @@
 
 # Import built-in modules
 import asyncio
-import os
 from datetime import datetime
+import os
 from pathlib import Path
 
 # Import local modules
@@ -25,11 +25,7 @@ def test_sync(url: str) -> None:
     # Send a text message
     print("\nTesting text message...")
     response = bridge.send(
-        "wecom",
-        webhook_url=url,
-        content="Hello from notify-bridge!",
-        msg_type="text",
-        mentioned_list=["@all"]
+        "wecom", base_url=url, message="Hello from notify-bridge!", msg_type="text", mentioned_list=["@all"]
     )
     print(f"Response: {response}")
 
@@ -37,11 +33,11 @@ def test_sync(url: str) -> None:
     print("\nTesting markdown message...")
     response = bridge.send(
         "wecom",
-        webhook_url=url,
-        content="# Hello from notify-bridge!\n\n**Time**: {}\n\nThis is a *markdown* message.".format(
+        base_url=url,
+        message="# Hello from notify-bridge!\n\n**Time**: {}\n\nThis is a *markdown* message.".format(
             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ),
-        msg_type="markdown"
+        msg_type="markdown",
     )
     print(f"Response: {response}")
 
@@ -49,12 +45,7 @@ def test_sync(url: str) -> None:
     print("\nTesting image message...")
     image_path = Path(__file__).parent / "assets" / "example.png"
     if image_path.exists():
-        response = bridge.send(
-            "wecom",
-            webhook_url=url,
-            msg_type="image",
-            image_path=str(image_path)
-        )
+        response = bridge.send("wecom", base_url=url, msg_type="image", image_path=str(image_path))
         print(f"Response: {response}")
     else:
         print(f"[X] Example image not found at {image_path}")
@@ -63,17 +54,17 @@ def test_sync(url: str) -> None:
     print("\nTesting news message...")
     response = bridge.send(
         "wecom",
-        url=url,
+        base_url=url,
         msg_type="news",
         mentioned_list=["@all"],
-        articles=[{
-            "title": "Hello from notify-bridge!",
-            "description": "This is a news message sent at {}".format(
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ),
-            "url": "https://github.com/loonghao/notify-bridge",
-            "picurl": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
-        }]
+        articles=[
+            {
+                "title": "Hello from notify-bridge!",
+                "description": "This is a news message sent at {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                "url": "https://github.com/loonghao/notify-bridge",
+                "picurl": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+            }
+        ],
     )
     print(f"Response: {response}")
 
@@ -93,11 +84,7 @@ async def test_async(url: str) -> None:
     # Send a text message
     print("\nTesting async text message...")
     response = await bridge.send_async(
-        "wecom",
-        webhook_url=url,
-        content="Hello from notify-bridge! (async)",
-        msg_type="text",
-        mentioned_list=["@all"]
+        "wecom", base_url=url, message="Hello from notify-bridge! (async)", msg_type="text", mentioned_list=["@all"]
     )
     print(f"Response: {response}")
 
@@ -105,11 +92,11 @@ async def test_async(url: str) -> None:
     print("\nTesting async markdown message...")
     response = await bridge.send_async(
         "wecom",
-        webhook_url=url,
-        content="# Hello from notify-bridge! (async)\n\n**Time**: {}\n\nThis is an *async markdown* message.".format(
+        base_url=url,
+        message="# Hello from notify-bridge! (async)\n\n**Time**: {}\n\nThis is an *async markdown* message.".format(
             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ),
-        msg_type="markdown"
+        msg_type="markdown",
     )
     print(f"Response: {response}")
 
@@ -117,12 +104,7 @@ async def test_async(url: str) -> None:
     print("\nTesting async image message...")
     image_path = Path(__file__).parent / "assets" / "example.png"
     if image_path.exists():
-        response = await bridge.send_async(
-            "wecom",
-            webhook_url=url,
-            msg_type="image",
-            image_path=str(image_path)
-        )
+        response = await bridge.send_async("wecom", base_url=url, msg_type="image", image_path=str(image_path))
         print(f"Response: {response}")
     else:
         print(f"[X] Example image not found at {image_path}")
@@ -131,17 +113,19 @@ async def test_async(url: str) -> None:
     print("\nTesting async news message...")
     response = await bridge.send_async(
         "wecom",
-        url=url,
+        base_url=url,
         msg_type="news",
         mentioned_list=["@all"],
-        articles=[{
-            "title": "Hello from notify-bridge! (async)",
-            "description": "This is an async news message sent at {}".format(
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ),
-            "url": "https://github.com/loonghao/notify-bridge",
-            "picurl": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
-        }]
+        articles=[
+            {
+                "title": "Hello from notify-bridge! (async)",
+                "description": "This is an async news message sent at {}".format(
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                ),
+                "url": "https://github.com/loonghao/notify-bridge",
+                "picurl": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+            }
+        ],
     )
     print(f"Response: {response}")
 
@@ -162,7 +146,9 @@ def setup_test_environment() -> None:
     if not example_image.exists():
         # Create a simple colored image using PIL
         try:
-            from PIL import Image, ImageDraw
+            # Import third-party modules
+            from PIL import Image
+            from PIL import ImageDraw
 
             # Create a 200x200 image with white background
             img = Image.new("RGB", (200, 200), "white")

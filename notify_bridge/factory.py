@@ -2,15 +2,20 @@
 
 # Import built-in modules
 import logging
-from typing import Any, Dict, List, Optional, Type, Union
-
-from notify_bridge.components import BaseNotifier
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Type
+from typing import Union
 
 # Import local modules
+from notify_bridge.components import BaseNotifier
 from notify_bridge.exceptions import NoSuchNotifierError
 from notify_bridge.plugin import get_all_notifiers
 from notify_bridge.schema import NotificationSchema
 from notify_bridge.utils import HTTPClientConfig
+
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +83,9 @@ class NotifierFactory:
             raise NoSuchNotifierError(f"Notifier {name} not found")
         return notifier_class(config=config, **kwargs)
 
-    async def create_async_notifier(self, name: str, config: Optional[HTTPClientConfig] = None, **kwargs: Any) -> BaseNotifier:
+    async def create_async_notifier(
+        self, name: str, config: Optional[HTTPClientConfig] = None, **kwargs: Any
+    ) -> BaseNotifier:
         """Create a notifier instance.
 
         Args:

@@ -5,16 +5,24 @@ This module contains all the base schemas and type definitions used in notify-br
 
 # Import built-in modules
 from enum import Enum
-from typing import Any, DefaultDict, Dict, List, Optional
+from typing import Any
+from typing import DefaultDict
+from typing import Dict
+from typing import List
+from typing import Optional
 
 # Import third-party modules
-from pydantic import BaseModel, EmailStr, Field, SecretStr, field_validator, model_validator
-
-# Import local modules
+from pydantic import BaseModel
+from pydantic import EmailStr
+from pydantic import Field
+from pydantic import SecretStr
+from pydantic import field_validator
+from pydantic import model_validator
 
 
 class NotifyLevel(str, Enum):
     """Notification level enum."""
+
     DEBUG = "debug"
     INFO = "info"
     WARNING = "warning"
@@ -43,13 +51,13 @@ class BaseSchema(BaseModel):
             "title": self.title,
             "content": self.content,
             "msg_type": self.msg_type,
-            **self.payload
+            **self.payload,
         }
 
 
 class NotificationSchema(BaseSchema):
     """Base notification schema.
-    
+
     This is the most basic schema that all notifiers must implement.
     Platform-specific fields should be added in platform-specific schemas.
     """
@@ -59,14 +67,14 @@ class NotificationSchema(BaseSchema):
     content: Optional[str] = Field(None, description="Message content")
     msg_type: Optional[str] = Field(None, description="Message type")
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def convert_webhook_url(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Convert webhook_url to url.
-        
+
         Args:
             data: Data to validate.
-        
+
         Returns:
             Dict[str, Any]: Validated data.
         """
@@ -74,17 +82,17 @@ class NotificationSchema(BaseSchema):
             data["url"] = data["webhook_url"]
         return data
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def transform_fields(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Transform input fields.
-        
+
         This method should be overridden by subclasses to implement
         platform-specific field transformations.
-        
+
         Args:
             data: Raw input data.
-        
+
         Returns:
             Dict[str, Any]: Transformed data.
         """
@@ -105,13 +113,13 @@ class WebhookSchema(NotificationSchema):
     @classmethod
     def validate_method(cls, v: str) -> str:
         """Validate HTTP method.
-        
+
         Args:
             v: HTTP method
-            
+
         Returns:
             Validated HTTP method
-            
+
         Raises:
             ValueError: If method is invalid
 
@@ -123,7 +131,7 @@ class WebhookSchema(NotificationSchema):
 
     def to_payload(self) -> Dict[str, Any]:
         """Convert schema to payload.
-        
+
         Returns:
             Dict[str, Any]: Webhook payload
 
@@ -145,7 +153,7 @@ class EmailSchema(NotificationSchema):
     html_content: Optional[str] = Field(None, description="HTML content of the email")
     attachments: List[str] = Field(default_factory=list, description="List of attachment paths")
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def validate_email_lists(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         """Validate email lists."""
@@ -156,7 +164,7 @@ class EmailSchema(NotificationSchema):
 
     def to_payload(self) -> Dict[str, Any]:
         """Convert schema to email payload.
-        
+
         Returns:
             Dict[str, Any]: Email payload
 
@@ -178,6 +186,7 @@ class NotificationResponse(BaseModel):
 
 class AuthType(str, Enum):
     """Authentication type enum."""
+
     NONE = "none"
     BASIC = "basic"
     BEARER = "bearer"
@@ -188,50 +197,24 @@ class AuthType(str, Enum):
 
 class AuthSchema(BaseModel):
     """Base schema for authentication.
-    
+
     This schema is used to define authentication parameters.
 
     """
-    auth_type: AuthType = Field(
-        default=AuthType.NONE,
-        description="Authentication type"
-    )
-    username: Optional[str] = Field(
-        None,
-        description="Username for basic auth"
-    )
-    password: Optional[SecretStr] = Field(
-        None,
-        description="Password for basic auth"
-    )
-    token: Optional[SecretStr] = Field(
-        None,
-        description="Token for bearer auth"
-    )
-    api_key: Optional[SecretStr] = Field(
-        None,
-        description="API key"
-    )
-    api_key_name: Optional[str] = Field(
-        None,
-        description="API key parameter name"
-    )
-    api_key_location: Optional[str] = Field(
-        None,
-        description="API key location (header, query, cookie)"
-    )
-    oauth_config: Optional[Dict[str, Any]] = Field(
-        None,
-        description="OAuth configuration"
-    )
-    custom_auth: Optional[Dict[str, Any]] = Field(
-        None,
-        description="Custom authentication parameters"
-    )
+
+    auth_type: AuthType = Field(default=AuthType.NONE, description="Authentication type")
+    username: Optional[str] = Field(None, description="Username for basic auth")
+    password: Optional[SecretStr] = Field(None, description="Password for basic auth")
+    token: Optional[SecretStr] = Field(None, description="Token for bearer auth")
+    api_key: Optional[SecretStr] = Field(None, description="API key")
+    api_key_name: Optional[str] = Field(None, description="API key parameter name")
+    api_key_location: Optional[str] = Field(None, description="API key location (header, query, cookie)")
+    oauth_config: Optional[Dict[str, Any]] = Field(None, description="OAuth configuration")
+    custom_auth: Optional[Dict[str, Any]] = Field(None, description="Custom authentication parameters")
 
     def to_headers(self) -> Dict[str, str]:
         """Convert auth schema to headers.
-        
+
         Returns:
             Dict containing authentication headers
         """
@@ -239,7 +222,9 @@ class AuthSchema(BaseModel):
 
         if self.auth_type == AuthType.BASIC:
             if self.username and self.password:
+                # Import built-in modules
                 import base64
+
                 auth_str = f"{self.username}:{self.password.get_secret_value()}"
                 auth_bytes = base64.b64encode(auth_str.encode()).decode()
                 headers["Authorization"] = f"Basic {auth_bytes}"
@@ -257,4 +242,5 @@ class AuthSchema(BaseModel):
 
     class Config:
         """Pydantic model configuration."""
+
         arbitrary_types_allowed = True

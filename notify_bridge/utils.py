@@ -3,24 +3,28 @@
 This module provides utility functions and classes for HTTP clients and logging.
 """
 
+# Import built-in modules
 import asyncio
-import logging
-import logging.handlers
-import os
 import time
-from functools import wraps
 from types import TracebackType
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Type
 
+# Import third-party modules
 import httpx
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
+from pydantic import Field
+from pydantic import field_validator
 
+# Import local modules
 from notify_bridge.exceptions import NotificationError
 
 
 class HTTPClientConfig(BaseModel):
     """Configuration for HTTP clients.
-    
+
     Attributes:
         timeout: Request timeout in seconds
         max_retries: Maximum number of retries
@@ -29,27 +33,27 @@ class HTTPClientConfig(BaseModel):
         proxies: Proxy configuration
         headers: Default headers
     """
+
     timeout: float = 30.0
     max_retries: int = 3
     retry_delay: float = 1.0
     verify_ssl: bool = True
     proxies: Optional[Dict[str, str]] = None
-    headers: Dict[str, str] = {
-        "User-Agent": "notify-bridge/1.0",
-        "Accept": "application/json"
-    }
+    headers: Dict[str, str] = Field(
+        default_factory=lambda: {"User-Agent": "notify-bridge/1.0", "Accept": "application/json"}
+    )
 
     @field_validator("timeout")
     @classmethod
     def validate_timeout(cls, v: float) -> float:
         """Validate timeout value.
-        
+
         Args:
             v: Timeout value
-            
+
         Returns:
             Validated timeout value
-            
+
         Raises:
             ValueError: If timeout is not positive
         """
@@ -61,13 +65,13 @@ class HTTPClientConfig(BaseModel):
     @classmethod
     def validate_max_retries(cls, v: int) -> int:
         """Validate max_retries value.
-        
+
         Args:
             v: Max retries value
-            
+
         Returns:
             Validated max retries value
-            
+
         Raises:
             ValueError: If max_retries is negative
         """
@@ -79,13 +83,13 @@ class HTTPClientConfig(BaseModel):
     @classmethod
     def validate_retry_delay(cls, v: float) -> float:
         """Validate retry_delay value.
-        
+
         Args:
             v: Retry delay value
-            
+
         Returns:
             Validated retry delay value
-            
+
         Raises:
             ValueError: If retry_delay is not positive
 
@@ -96,40 +100,39 @@ class HTTPClientConfig(BaseModel):
 
 
 class HTTPClient:
-    """HTTP client with retries."""
+    """HTTP client for making requests."""
 
     def __init__(self, config: HTTPClientConfig) -> None:
         """Initialize HTTP client.
-        
+
         Args:
             config: HTTP client configuration
         """
         self._config = config
-        self._client = None
+        self._client: Optional[httpx.Client] = None
 
     def __enter__(self) -> "HTTPClient":
         """Enter context manager."""
         self._client = httpx.Client(
-            timeout=self._config.timeout,
-            verify=self._config.verify_ssl,
-            headers=self._config.headers,
-            proxy=self._config.proxies if self._config.proxies else None
+            timeout=self._config.timeout, verify=self._config.verify_ssl, headers=self._config.headers
         )
         return self
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> None:
+    def __exit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         """Exit context manager."""
         if self._client:
             self._client.close()
             self._client = None
 
     def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        """Make HTTP request with retries.
-        
+        """Make HTTP request.
+
         Args:
             method: HTTP method
             url: Request URL
-            **kwargs: Additional arguments to pass to httpx.request
+            **kwargs: Additional arguments passed to httpx.request
 
         Returns:
             Response object
@@ -138,217 +141,69 @@ class HTTPClient:
             RequestError: If request fails after max retries
         """
         if not self._client:
-            self.__enter__()
+            raise NotificationError("HTTP client not initialized")
 
-        last_error = None
-        verify = kwargs.pop("verify", True)
-
-        for _ in range(self._config.max_retries):
+        attempt = 0
+        while attempt < self._config.max_retries:
             try:
-                response = self._client.request(method, url, verify=verify, **kwargs)
-                response.raise_for_status()
-                return response
+                return self._client.request(method, url, **kwargs)
             except httpx.RequestError as e:
-                last_error = e
+                attempt += 1
+                if attempt == self._config.max_retries:
+                    raise NotificationError(f"Request failed after {attempt} attempts: {str(e)}")
                 time.sleep(self._config.retry_delay)
-                continue
-            except Exception as e:
-                raise NotificationError.from_exception(e, "http_client")
-
-        if last_error:
-            raise NotificationError.from_exception(last_error, "http_client")
-        raise NotificationError("Unknown error in http_client")
 
 
 class AsyncHTTPClient:
-    """Async HTTP client with retries."""
+    """Async HTTP client for making requests."""
 
     def __init__(self, config: HTTPClientConfig) -> None:
         """Initialize async HTTP client.
-        
+
         Args:
             config: HTTP client configuration
         """
         self._config = config
-        self._client = None
+        self._client: Optional[httpx.AsyncClient] = None
 
     async def __aenter__(self) -> "AsyncHTTPClient":
-        """Enter context manager."""
+        """Enter async context manager."""
         self._client = httpx.AsyncClient(
-            timeout=self._config.timeout,
-            verify=self._config.verify_ssl,
-            headers=self._config.headers,
-            proxy=self._config.proxies if self._config.proxies else None
+            timeout=self._config.timeout, verify=self._config.verify_ssl, headers=self._config.headers
         )
         return self
 
-    async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> None:
-        """Exit context manager."""
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
+        """Exit async context manager."""
         if self._client:
             await self._client.aclose()
             self._client = None
 
     async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        """Make async HTTP request with retries.
+        """Make async HTTP request.
 
         Args:
             method: HTTP method
             url: Request URL
-            **kwargs: Additional arguments to pass to httpx.request
+            **kwargs: Additional arguments passed to httpx.request
 
         Returns:
             Response object
-            
+
         Raises:
             RequestError: If request fails after max retries
         """
         if not self._client:
-            await self.__aenter__()
+            raise NotificationError("HTTP client not initialized")
 
-        last_error = None
-
-        for _ in range(self._config.max_retries):
+        attempt = 0
+        while attempt < self._config.max_retries:
             try:
-                response = await self._client.request(method, url, **kwargs)
-                await response.raise_for_status()
-                return response
+                return await self._client.request(method, url, **kwargs)
             except httpx.RequestError as e:
-                last_error = e
+                attempt += 1
+                if attempt == self._config.max_retries:
+                    raise NotificationError(f"Request failed after {attempt} attempts: {str(e)}")
                 await asyncio.sleep(self._config.retry_delay)
-                continue
-            except Exception as e:
-                raise NotificationError.from_exception(e, "http_client")
-
-        if last_error:
-            raise NotificationError.from_exception(last_error, "http_client")
-        raise NotificationError("Unknown error in http_client")
-
-
-class LogConfig(BaseModel):
-    """Configuration for logging.
-
-    Attributes:
-        level: Log level
-        format: Log format
-        date_format: Date format
-        filename: Log file name
-        max_bytes: Maximum bytes per file
-        backup_count: Number of backup files
-    """
-    level: Union[str, int] = logging.INFO
-    format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    date_format: str = "%Y-%m-%d %H:%M:%S"
-    filename: Optional[str] = None
-    max_bytes: int = 10 * 1024 * 1024  # 10MB
-    backup_count: int = 5
-
-    @field_validator("level")
-    @classmethod
-    def validate_level(cls, v: Union[str, int]) -> Union[str, int]:
-        """Validate log level.
-
-        Args:
-            v: Log level
-
-        Returns:
-            Validated log level
-
-        Raises:
-            ValueError: If level is invalid
-        """
-        if isinstance(v, str):
-            v = v.upper()
-            if v not in logging._nameToLevel:
-                raise ValueError(f"Invalid log level: {v}")
-        elif isinstance(v, int):
-            if v not in logging._levelToName:
-                raise ValueError(f"Invalid log level: {v}")
-        else:
-            raise ValueError(f"Invalid log level type: {type(v)}")
-        return v
-
-
-def setup_logging(config: Optional[LogConfig] = None) -> None:
-    """Setup logging configuration.
-
-    Args:
-        config: Logging configuration
-    """
-    config = config or LogConfig()
-
-    # Convert string level to int if needed
-    if isinstance(config.level, str):
-        config.level = getattr(logging, config.level.upper())
-
-    # Create formatter
-    formatter = logging.Formatter(
-        fmt=config.format,
-        datefmt=config.date_format
-    )
-
-    # Setup handlers
-    handlers = []
-
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    handlers.append(console_handler)
-
-    # File handler if filename is provided
-    if config.filename:
-        os.makedirs(os.path.dirname(config.filename), exist_ok=True)
-        file_handler = logging.handlers.RotatingFileHandler(
-            filename=config.filename,
-            maxBytes=config.max_bytes,
-            backupCount=config.backup_count
-        )
-        file_handler.setFormatter(formatter)
-        handlers.append(file_handler)
-
-    # Configure root logger
-    logging.basicConfig(
-        level=config.level,
-        handlers=handlers,
-        force=True
-    )
-
-
-def log_call(logger: Optional[logging.Logger] = None):
-    """Decorator to log function calls.
-
-    Args:
-        logger: Logger to use, defaults to module logger
-    """
-    def decorator(func):
-        nonlocal logger
-        if logger is None:
-            logger = logging.getLogger(func.__module__)
-
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            logger.debug(
-                f"Calling {func.__name__} with args={args}, kwargs={kwargs}"
-            )
-            try:
-                result = func(*args, **kwargs)
-                logger.debug(f"{func.__name__} returned {result}")
-                return result
-            except Exception:
-                logger.exception(f"{func.__name__} raised an exception")
-                raise
-
-        @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            logger.debug(
-                f"Calling {func.__name__} with args={args}, kwargs={kwargs}"
-            )
-            try:
-                result = await func(*args, **kwargs)
-                logger.debug(f"{func.__name__} returned {result}")
-                return result
-            except Exception:
-                logger.exception(f"{func.__name__} raised an exception")
-                raise
-
-        return async_wrapper if asyncio.iscoroutinefunction(func) else wrapper
-    return decorator

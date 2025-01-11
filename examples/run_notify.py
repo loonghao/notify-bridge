@@ -12,7 +12,7 @@ from notify_bridge.components import NotificationError
 
 def test_text_message(bridge: NotifyBridge, base_url: str, token: Optional[str] = None) -> None:
     """Test sending text message.
-    
+
     Args:
         bridge: NotifyBridge instance
         base_url: Base URL for Notify API
@@ -27,7 +27,7 @@ def test_text_message(bridge: NotifyBridge, base_url: str, token: Optional[str] 
             message="Hello from notify-bridge! This is a test message.",
             # token=token,
             tags=["test", "notify-bridge"],
-            msg_type="text"
+            msg_type="text",
         )
         print(f"[+] Text message sent successfully: {response}")
     except NotificationError as e:
@@ -36,7 +36,7 @@ def test_text_message(bridge: NotifyBridge, base_url: str, token: Optional[str] 
 
 async def test_async_messages(bridge: NotifyBridge, base_url: str, token: Optional[str] = None) -> None:
     """Test sending messages asynchronously.
-    
+
     Args:
         bridge: NotifyBridge instance
         base_url: Base URL for Notify API
@@ -52,7 +52,7 @@ async def test_async_messages(bridge: NotifyBridge, base_url: str, token: Option
                 message="Hello from notify-bridge! This is an async text message.",
                 # token=token,
                 tags=["test", "notify-bridge", "async"],
-                msg_type="text"
+                msg_type="text",
             ),
             bridge.send_async(
                 "notify",
@@ -61,8 +61,8 @@ async def test_async_messages(bridge: NotifyBridge, base_url: str, token: Option
                 message="Hello from notify-bridge! This is another async text message.",
                 # token=token,
                 tags=["test", "notify-bridge", "async"],
-                msg_type="text"
-            )
+                msg_type="text",
+            ),
         ]
         results = await asyncio.gather(*tasks)
         for i, response in enumerate(results):
