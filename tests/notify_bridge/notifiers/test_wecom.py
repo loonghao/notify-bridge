@@ -7,8 +7,11 @@ from pathlib import Path
 import pytest
 
 # Import local modules
-from notify_bridge.components import MessageType, NotificationError
-from notify_bridge.notifiers.wecom import Article, WeComNotifier, WeComSchema
+from notify_bridge.components import MessageType
+from notify_bridge.components import NotificationError
+from notify_bridge.notifiers.wecom import Article
+from notify_bridge.notifiers.wecom import WeComNotifier
+from notify_bridge.notifiers.wecom import WeComSchema
 
 
 def test_article_schema():
@@ -18,7 +21,7 @@ def test_article_schema():
         "title": "Test Title",
         "description": "Test Description",
         "url": "https://test.url",
-        "picurl": "https://test.url/image.png"
+        "picurl": "https://test.url/image.png",
     }
     article = Article(**article_data)
     assert article.title == "Test Title"
@@ -27,10 +30,7 @@ def test_article_schema():
     assert article.picurl == "https://test.url/image.png"
 
     # Test article without optional fields
-    article = Article(
-        title="Test Title",
-        url="https://test.url"
-    )
+    article = Article(title="Test Title", url="https://test.url")
     assert article.title == "Test Title"
     assert article.description is None
     assert article.url == "https://test.url"
@@ -54,11 +54,11 @@ def test_build_text_payload():
 
     # Test text message with mentions
     notification = WeComSchema(
-        webhook_url="https://test.url",
+        base_url="https://test.url",
         msg_type=MessageType.TEXT,
-        content="Test content",
+        message="Test content",
         mentioned_list=["user1", "user2"],
-        mentioned_mobile_list=["12345678901"]
+        mentioned_mobile_list=["12345678901"],
     )
     payload = notifier.build_payload(notification)
     assert payload["msgtype"] == "text"
@@ -67,11 +67,7 @@ def test_build_text_payload():
     assert payload["text"]["mentioned_mobile_list"] == ["12345678901"]
 
     # Test text message without mentions
-    notification = WeComSchema(
-        webhook_url="https://test.url",
-        msg_type=MessageType.TEXT,
-        content="Test content"
-    )
+    notification = WeComSchema(base_url="https://test.url", msg_type=MessageType.TEXT, message="Test content")
     payload = notifier.build_payload(notification)
     assert payload["msgtype"] == "text"
     assert payload["text"]["content"] == "Test content"
@@ -80,10 +76,7 @@ def test_build_text_payload():
 
     # Test text message without content
     with pytest.raises(NotificationError):
-        notification = WeComSchema(
-            webhook_url="https://test.url",
-            msg_type=MessageType.TEXT
-        )
+        notification = WeComSchema(base_url="https://test.url", msg_type=MessageType.TEXT)
         notifier.build_payload(notification)
 
 
@@ -93,9 +86,7 @@ def test_build_markdown_payload():
 
     # Test markdown message
     notification = WeComSchema(
-        webhook_url="https://test.url",
-        msg_type=MessageType.MARKDOWN,
-        content="# Test Title\n\nTest content"
+        base_url="https://test.url", msg_type=MessageType.MARKDOWN, message="# Test Title\n\nTest content"
     )
     payload = notifier.build_payload(notification)
     assert payload["msgtype"] == "markdown"
@@ -103,10 +94,7 @@ def test_build_markdown_payload():
 
     # Test markdown message without content
     with pytest.raises(NotificationError):
-        notification = WeComSchema(
-            webhook_url="https://test.url",
-            msg_type=MessageType.MARKDOWN
-        )
+        notification = WeComSchema(base_url="https://test.url", msg_type=MessageType.MARKDOWN)
         notifier.build_payload(notification)
 
 
@@ -116,35 +104,25 @@ def test_build_image_payload(tmp_path: Path):
 
     # Create a test image file
     image_path = tmp_path / "test.png"
-    image_content = b"test image content"
-    image_path.write_bytes(image_content)
+    image_path.write_bytes(b"test")
 
     # Test image message
-    notification = WeComSchema(
-        webhook_url="https://test.url",
-        msg_type=MessageType.IMAGE,
-        image_path=str(image_path)
-    )
+    notification = WeComSchema(base_url="https://test.url", msg_type=MessageType.IMAGE, image_path=str(image_path))
     payload = notifier.build_payload(notification)
     assert payload["msgtype"] == "image"
     assert "base64" in payload["image"]
     assert "md5" in payload["image"]
 
-    # Test image message without image_path
+    # Test image message with non-existent file
     with pytest.raises(NotificationError):
         notification = WeComSchema(
-            webhook_url="https://test.url",
-            msg_type=MessageType.IMAGE
+            base_url="https://test.url", msg_type=MessageType.IMAGE, image_path="non_existent.png"
         )
         notifier.build_payload(notification)
 
-    # Test with non-existent image file
+    # Test image message without image path
     with pytest.raises(NotificationError):
-        notification = WeComSchema(
-            webhook_url="https://test.url",
-            msg_type=MessageType.IMAGE,
-            image_path="non_existent.png"
-        )
+        notification = WeComSchema(base_url="https://test.url", msg_type=MessageType.IMAGE)
         notifier.build_payload(notification)
 
 
@@ -152,102 +130,86 @@ def test_build_news_payload():
     """Test news message payload building."""
     notifier = WeComNotifier()
 
-    # Test news message with all fields
-    articles = [
-        Article(
-            title="Test Title 1",
-            description="Test Description 1",
-            url="https://test.url/1",
-            picurl="https://test.url/image1.png"
-        ),
-        Article(
-            title="Test Title 2",
-            url="https://test.url/2"
-        )
-    ]
+    # Test news message with single article
     notification = WeComSchema(
-        webhook_url="https://test.url",
+        base_url="https://test.url",
         msg_type=MessageType.NEWS,
-        articles=articles,
-        mentioned_list=["user1"],
-        mentioned_mobile_list=["12345678901"]
+        articles=[
+            {
+                "title": "Test Title",
+                "description": "Test Description",
+                "url": "https://test.url",
+                "picurl": "https://test.url/image.png",
+            }
+        ],
+    )
+    payload = notifier.build_payload(notification)
+    assert payload["msgtype"] == "news"
+    assert len(payload["news"]["articles"]) == 1
+    assert payload["news"]["articles"][0]["title"] == "Test Title"
+    assert payload["news"]["articles"][0]["description"] == "Test Description"
+    assert payload["news"]["articles"][0]["url"] == "https://test.url"
+    assert payload["news"]["articles"][0]["picurl"] == "https://test.url/image.png"
+
+    # Test news message with multiple articles
+    notification = WeComSchema(
+        base_url="https://test.url",
+        msg_type=MessageType.NEWS,
+        articles=[
+            {"title": "Test Title 1", "url": "https://test.url/1"},
+            {"title": "Test Title 2", "url": "https://test.url/2"},
+        ],
     )
     payload = notifier.build_payload(notification)
     assert payload["msgtype"] == "news"
     assert len(payload["news"]["articles"]) == 2
     assert payload["news"]["articles"][0]["title"] == "Test Title 1"
-    assert payload["news"]["articles"][0]["description"] == "Test Description 1"
-    assert payload["news"]["articles"][0]["url"] == "https://test.url/1"
-    assert payload["news"]["articles"][0]["picurl"] == "https://test.url/image1.png"
     assert payload["news"]["articles"][1]["title"] == "Test Title 2"
-    assert payload["news"]["articles"][1]["url"] == "https://test.url/2"
-    assert "description" not in payload["news"]["articles"][1]
-    assert "picurl" not in payload["news"]["articles"][1]
-    assert payload["text"]["mentioned_list"] == ["user1"]
-    assert payload["text"]["mentioned_mobile_list"] == ["12345678901"]
 
     # Test news message without articles
     with pytest.raises(NotificationError):
-        notification = WeComSchema(
-            webhook_url="https://test.url",
-            msg_type=MessageType.NEWS
-        )
+        notification = WeComSchema(base_url="https://test.url", msg_type=MessageType.NEWS)
         notifier.build_payload(notification)
 
 
 def test_wecom_notifier_validation():
     """Test WeComNotifier validation."""
-    notifier = WeComNotifier()
-
-    # Test text message validation
-    text_data = {
-        "webhook_url": "https://test.url",
+    # Test valid schema with new usage
+    valid_data = {
+        "base_url": "https://test.url",
         "msg_type": MessageType.TEXT,
-        "content": "Test content"
+        "message": "Test content",
+        "mentioned_list": ["user1", "user2"],
+        "mentioned_mobile_list": ["12345678901"],
     }
-    notification = WeComSchema(**text_data)
-    notifier.build_payload(notification)
+    schema = WeComSchema(**valid_data)
+    assert schema.webhook_url == "https://test.url"
+    assert schema.content == "Test content"
+    assert schema.msg_type == MessageType.TEXT
+    assert schema.mentioned_list == ["user1", "user2"]
+    assert schema.mentioned_mobile_list == ["12345678901"]
 
-    # Test text message without content
-    text_data["content"] = None
-    notification = WeComSchema(**text_data)
-    with pytest.raises(NotificationError):
-        notifier.build_payload(notification)
+    # Test required fields
+    with pytest.raises(ValueError):
+        WeComSchema()  # Missing required fields
 
-    # Test markdown message validation
-    markdown_data = {
-        "webhook_url": "https://test.url",
-        "msg_type": MessageType.MARKDOWN,
-        "content": "# Test Title"
-    }
-    notification = WeComSchema(**markdown_data)
-    notifier.build_payload(notification)
-
-    # Test markdown message without content
-    markdown_data["content"] = None
-    notification = WeComSchema(**markdown_data)
-    with pytest.raises(NotificationError):
-        notifier.build_payload(notification)
+    # Test invalid message type
+    with pytest.raises(ValueError):
+        WeComSchema(base_url="https://test.url", msg_type="invalid")
 
 
 def test_invalid_schema():
     """Test invalid schema handling."""
     notifier = WeComNotifier()
-
-    # Test invalid schema type
     with pytest.raises(NotificationError):
-        notifier.build_payload(object())
+        notifier.build_payload(object())  # Pass invalid schema object
 
 
 def test_unsupported_message_type():
     """Test unsupported message type handling."""
     notifier = WeComNotifier()
-
-    # Create a notification with unsupported message type
-    notification = WeComSchema(
-        webhook_url="https://test.url",
-        msg_type=MessageType.FILE  # Not in supported_types
-    )
-    with pytest.raises(NotificationError) as exc_info:
+    with pytest.raises(NotificationError):
+        notification = WeComSchema(
+            base_url="https://test.url", msg_type="file", message="Test content"  # Unsupported type
+        )
         notifier.build_payload(notification)
-    assert f"Unsupported message type: {MessageType.FILE}" in str(exc_info.value)

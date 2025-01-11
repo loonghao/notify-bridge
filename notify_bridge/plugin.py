@@ -2,21 +2,22 @@
 
 # Import built-in modules
 import importlib
+from importlib import metadata
 import inspect
 import logging
 import os
 import sys
-
-# Import third-party modules
-from importlib import metadata
-from typing import Dict, Optional, Type
-
-from notify_bridge.components import BaseNotifier
+from typing import Dict
+from typing import Optional
+from typing import Type
 
 # Import local modules
+from notify_bridge.components import BaseNotifier
 from notify_bridge.exceptions import PluginError
 
+
 logger = logging.getLogger(__name__)
+
 
 def load_notifier(entry_point: str) -> Type[BaseNotifier]:
     """Load a BaseNotifier class from a given entry point string.
@@ -40,6 +41,7 @@ def load_notifier(entry_point: str) -> Type[BaseNotifier]:
     except (ImportError, AttributeError, ValueError) as e:
         raise PluginError(f"Failed to load plugin {entry_point}: {e}")
 
+
 def get_notifiers_from_entry_points() -> Dict[str, Type[BaseNotifier]]:
     """Load notifier plugins from entry points.
 
@@ -49,11 +51,11 @@ def get_notifiers_from_entry_points() -> Dict[str, Type[BaseNotifier]]:
     notifiers = {}
     try:
         entry_points = metadata.entry_points()
-        if hasattr(entry_points, 'select'):  # Python 3.10+
-            notifier_eps = entry_points.select(group='notify_bridge.notifiers')
+        if hasattr(entry_points, "select"):  # Python 3.10+
+            notifier_eps = entry_points.select(group="notify_bridge.notifiers")
         else:  # Python 3.9 and below
-            notifier_eps = entry_points.get('notify_bridge.notifiers', [])
-            
+            notifier_eps = entry_points.get("notify_bridge.notifiers", [])
+
         for ep in notifier_eps:
             try:
                 notifier_class = load_notifier(f"{ep.module}:{ep.attr}")
@@ -63,6 +65,7 @@ def get_notifiers_from_entry_points() -> Dict[str, Type[BaseNotifier]]:
     except Exception as e:
         logger.warning(f"Error occurred while loading entry points: {e}")
     return notifiers
+
 
 def load_notifiers(package_name: str) -> Dict[str, Type[BaseNotifier]]:
     """Load notifiers from a specified package.
@@ -76,12 +79,13 @@ def load_notifiers(package_name: str) -> Dict[str, Type[BaseNotifier]]:
     notifiers = {}
     try:
         package = importlib.import_module(package_name)
-        for name, obj in inspect.getmembers(package):
+        for _, obj in inspect.getmembers(package):
             if inspect.isclass(obj) and issubclass(obj, BaseNotifier) and obj != BaseNotifier:
                 notifiers[obj.name.lower()] = obj
     except ImportError as e:
         logger.error(f"Failed to import package {package_name}: {e}")
     return notifiers
+
 
 def load_plugins(plugin_dir: str) -> Dict[str, Type[BaseNotifier]]:
     """Load plugins from the specified directory.
@@ -103,13 +107,14 @@ def load_plugins(plugin_dir: str) -> Dict[str, Type[BaseNotifier]]:
             module_name = file[:-3]
             try:
                 module = importlib.import_module(module_name)
-                for name, obj in inspect.getmembers(module):
+                for _, obj in inspect.getmembers(module):
                     if inspect.isclass(obj) and issubclass(obj, BaseNotifier) and obj != BaseNotifier:
                         plugins[obj.name.lower()] = obj
             except ImportError as e:
                 logger.error(f"Failed to import plugin {module_name}: {e}")
     sys.path.pop(0)
     return plugins
+
 
 def get_all_notifiers(plugin_dir: Optional[str] = None) -> Dict[str, Type[BaseNotifier]]:
     """Get all available notifiers from various sources.
@@ -120,11 +125,12 @@ def get_all_notifiers(plugin_dir: Optional[str] = None) -> Dict[str, Type[BaseNo
     Returns:
         Dict[str, Type[BaseNotifier]]: A dictionary mapping notifier names to their classes.
     """
-    notifiers = load_notifiers('notify_bridge.notifiers')  # Built-in notifiers
+    notifiers = load_notifiers("notify_bridge.notifiers")  # Built-in notifiers
     notifiers.update(get_notifiers_from_entry_points())  # Entry point notifiers
     if plugin_dir:
         notifiers.update(load_plugins(plugin_dir))  # Custom plugin directory
     return notifiers
+
 
 def get_notifier_class(name: str, plugin_dir: Optional[str] = None) -> Type[BaseNotifier]:
     """Get a notifier class by name.

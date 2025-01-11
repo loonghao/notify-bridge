@@ -7,60 +7,51 @@ This module provides the Feishu (Lark) notification implementation.
 import base64
 import logging
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any
+from typing import ClassVar
+from typing import Dict
+from typing import List
+from typing import Optional
 
 # Import third-party modules
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 
 # Import local modules
-from notify_bridge.components import BaseNotifier, MessageType, NotificationError, NotificationSchema
+from notify_bridge.components import BaseNotifier
+from notify_bridge.components import MessageType
+from notify_bridge.components import NotificationError
+from notify_bridge.components import NotificationSchema
+
 
 logger = logging.getLogger(__name__)
 
 
 class CardConfig(BaseModel):
     """Schema for Feishu card config."""
+
     wide_screen_mode: bool = Field(True, description="Wide screen mode")
 
 
 class CardHeader(BaseModel):
     """Schema for Feishu card header."""
+
     title: str = Field(..., description="Header title")
     template: str = Field("blue", description="Header template color")
 
 
 class FeishuSchema(NotificationSchema):
     """Schema for Feishu notifications."""
+
     webhook_url: str = Field(..., description="Webhook URL", alias="url")
     content: Optional[str] = Field(None, description="Message content")
-    post_content: Optional[Dict[str, List[List[Dict[str, str]]]]] = Field(
-        None,
-        description="Post message content"
-    )
-    image_path: Optional[str] = Field(
-        None,
-        description="Path to image file"
-    )
-    file_path: Optional[str] = Field(
-        None,
-        description="Path to file"
-    )
-    token: Optional[str] = Field(
-        None,
-        description="Access token for file upload"
-    )
-    card_config: Optional[CardConfig] = Field(
-        None,
-        description="Card config"
-    )
-    card_header: Optional[CardHeader] = Field(
-        None,
-        description="Card header"
-    )
-    card_elements: Optional[List[Dict[str, Any]]] = Field(
-        None,
-        description="Card elements"
-    )
+    post_content: Optional[Dict[str, List[List[Dict[str, str]]]]] = Field(None, description="Post message content")
+    image_path: Optional[str] = Field(None, description="Path to image file")
+    file_path: Optional[str] = Field(None, description="Path to file")
+    token: Optional[str] = Field(None, description="Access token for file upload")
+    card_config: Optional[CardConfig] = Field(None, description="Card config")
+    card_header: Optional[CardHeader] = Field(None, description="Card header")
+    card_elements: Optional[List[Dict[str, Any]]] = Field(None, description="Card elements")
 
 
 class FeishuNotifier(BaseNotifier):
@@ -73,7 +64,7 @@ class FeishuNotifier(BaseNotifier):
         MessageType.POST,
         MessageType.IMAGE,
         MessageType.FILE,
-        MessageType.INTERACTIVE
+        MessageType.INTERACTIVE,
     }
 
     def _build_text_payload(self, notification: FeishuSchema) -> Dict[str, Any]:
@@ -91,12 +82,7 @@ class FeishuNotifier(BaseNotifier):
         if not notification.content:
             raise NotificationError("content is required for text messages")
 
-        return {
-            "msg_type": "text",
-            "content": {
-                "text": notification.content
-            }
-        }
+        return {"msg_type": "text", "content": {"text": notification.content}}
 
     def _build_post_payload(self, notification: FeishuSchema) -> Dict[str, Any]:
         """Build post message payload.
@@ -113,12 +99,7 @@ class FeishuNotifier(BaseNotifier):
         if not notification.post_content:
             raise NotificationError("post_content is required for post messages")
 
-        return {
-            "msg_type": "post",
-            "content": {
-                "post": notification.post_content
-            }
-        }
+        return {"msg_type": "post", "content": {"post": notification.post_content}}
 
     def _encode_image(self, image_path: str) -> str:
         """Encode image to base64.
@@ -156,12 +137,7 @@ class FeishuNotifier(BaseNotifier):
 
         try:
             image_content = self._encode_image(notification.image_path)
-            return {
-                "msg_type": "image",
-                "content": {
-                    "base64": image_content
-                }
-            }
+            return {"msg_type": "image", "content": {"base64": image_content}}
         except Exception as e:
             raise NotificationError(f"Failed to build image payload: {str(e)}")
 
@@ -188,12 +164,7 @@ class FeishuNotifier(BaseNotifier):
             with open(notification.file_path, "rb") as f:
                 content = f.read()
                 file_key = self._upload_file(content, notification.token)
-                return {
-                    "msg_type": "file",
-                    "content": {
-                        "file_key": file_key
-                    }
-                }
+                return {"msg_type": "file", "content": {"file_key": file_key}}
         except Exception as e:
             raise NotificationError(f"Failed to upload file: {str(e)}")
 
@@ -253,14 +224,14 @@ class FeishuNotifier(BaseNotifier):
                     "title": {
                         "tag": "plain_text",
                         "content": notification.card_header.title,
-                        "template": notification.card_header.template
+                        "template": notification.card_header.template,
                     }
                 },
                 "elements": notification.card_elements,
                 "config": {
                     "wide_screen_mode": notification.card_config.wide_screen_mode if notification.card_config else True
-                }
-            }
+                },
+            },
         }
 
     def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:

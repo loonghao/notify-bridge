@@ -15,7 +15,7 @@ from notify_bridge.exceptions import NotificationError
 
 def test_text_message(bridge: NotifyBridge, url: str) -> None:
     """Test sending text message.
-    
+
     Args:
         bridge: NotifyBridge instance
         url: Webhook URL
@@ -35,7 +35,7 @@ def test_text_message(bridge: NotifyBridge, url: str) -> None:
 
 def test_post_message(bridge: NotifyBridge, url: str) -> None:
     """Test sending post message.
-    
+
     Args:
         bridge: NotifyBridge instance
         url: Webhook URL
@@ -46,26 +46,24 @@ def test_post_message(bridge: NotifyBridge, url: str) -> None:
             "zh_cn": [
                 [
                     {"tag": "text", "text": "Hello from notify-bridge!\n\n"},
-                    {"tag": "text", "text": "This is a post message with rich text support:\n\n"}
+                    {"tag": "text", "text": "This is a post message with rich text support:\n\n"},
                 ],
                 [
                     {"tag": "text", "text": "• Support "},
                     {"tag": "text", "text": "bold", "text_type": "bold"},
-                    {"tag": "text", "text": " text\n"}
+                    {"tag": "text", "text": " text\n"},
                 ],
                 [
                     {"tag": "text", "text": "• Support "},
                     {"tag": "text", "text": "italic", "text_type": "italic"},
-                    {"tag": "text", "text": " text\n"}
+                    {"tag": "text", "text": " text\n"},
                 ],
                 [
                     {"tag": "text", "text": "• Support "},
                     {"tag": "text", "text": "code", "text_type": "code"},
-                    {"tag": "text", "text": " blocks\n"}
+                    {"tag": "text", "text": " blocks\n"},
                 ],
-                [
-                    {"tag": "text", "text": "\n> This is a quote"}
-                ]
+                [{"tag": "text", "text": "\n> This is a quote"}],
             ]
         }
         response = bridge.send(
@@ -81,7 +79,7 @@ def test_post_message(bridge: NotifyBridge, url: str) -> None:
 
 def test_image_message(bridge: NotifyBridge, url: str) -> None:
     """Test sending image message.
-    
+
     Args:
         bridge: NotifyBridge instance
         url: Webhook URL
@@ -108,7 +106,7 @@ def test_image_message(bridge: NotifyBridge, url: str) -> None:
 
 def test_file_message(bridge: NotifyBridge, url: str, token: str) -> None:
     """Test sending file message.
-    
+
     Args:
         bridge: NotifyBridge instance
         url: Webhook URL
@@ -137,7 +135,7 @@ def test_file_message(bridge: NotifyBridge, url: str, token: str) -> None:
 
 def test_interactive_message(bridge: NotifyBridge, url: str) -> None:
     """Test sending interactive message.
-    
+
     Args:
         bridge: NotifyBridge instance
         url: Webhook URL
@@ -148,39 +146,17 @@ def test_interactive_message(bridge: NotifyBridge, url: str) -> None:
             "feishu",
             url=url,
             msg_type="interactive",
-            card_header={
-                "title": "This is a test card",
-                "template": "red"
-            },
+            card_header={"title": "This is a test card", "template": "red"},
             card_elements=[
-                {
-                    "tag": "div",
-                    "text": {
-                        "tag": "plain_text",
-                        "content": "This is a test card with some content."
-                    }
-                },
-                {
-                    "tag": "div",
-                    "text": {
-                        "tag": "lark_md",
-                        "content": "**Bold text** and *italic text*"
-                    }
-                },
+                {"tag": "div", "text": {"tag": "plain_text", "content": "This is a test card with some content."}},
+                {"tag": "div", "text": {"tag": "lark_md", "content": "**Bold text** and *italic text*"}},
                 {
                     "tag": "action",
                     "actions": [
-                        {
-                            "tag": "button",
-                            "text": {
-                                "tag": "plain_text",
-                                "content": "Click me!"
-                            },
-                            "type": "primary"
-                        }
-                    ]
-                }
-            ]
+                        {"tag": "button", "text": {"tag": "plain_text", "content": "Click me!"}, "type": "primary"}
+                    ],
+                },
+            ],
         )
         print(f"[+] Interactive message sent successfully: {response}")
     except NotificationError as e:
@@ -189,7 +165,7 @@ def test_interactive_message(bridge: NotifyBridge, url: str) -> None:
 
 async def test_async_messages(bridge: NotifyBridge, url: str) -> None:
     """Test sending messages asynchronously.
-    
+
     Args:
         bridge: NotifyBridge instance
         url: Webhook URL
@@ -207,12 +183,10 @@ async def test_async_messages(bridge: NotifyBridge, url: str) -> None:
                 "feishu",
                 url=url,
                 post_content={
-                    "zh_cn": [
-                        [{"tag": "text", "text": "Hello from notify-bridge! This is an async post message."}]
-                    ]
+                    "zh_cn": [[{"tag": "text", "text": "Hello from notify-bridge! This is an async post message."}]]
                 },
                 msg_type="post",
-            )
+            ),
         ]
         results = await asyncio.gather(*tasks)
         for i, response in enumerate(results):
@@ -223,7 +197,7 @@ async def test_async_messages(bridge: NotifyBridge, url: str) -> None:
 
 def setup_test_environment() -> None:
     """Setup test environment.
-    
+
     This function creates the assets directory and example files if they don't exist.
     """
     # Create assets directory
@@ -239,14 +213,16 @@ def setup_test_environment() -> None:
     example_image = assets_dir / "example.png"
     if not example_image.exists():
         # Create a simple black square as example image
+        # Import third-party modules
         from PIL import Image
-        img = Image.new('RGB', (100, 100), color='black')
+
+        img = Image.new("RGB", (100, 100), color="black")
         img.save(example_image)
 
 
 def run_feishu(url: str = None, token: str = None) -> None:
     """Run all Feishu notification tests.
-    
+
     Args:
         url: Webhook URL, if not provided will try to get from environment
         token: Access token, if not provided will try to get from environment

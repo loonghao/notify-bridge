@@ -11,7 +11,7 @@ from notify_bridge.components import NotificationError
 
 def test_text_issue(bridge: NotifyBridge, owner: str, repo: str, token: str) -> None:
     """Test creating a text issue.
-    
+
     Args:
         bridge: NotifyBridge instance
         owner: Repository owner
@@ -28,7 +28,7 @@ def test_text_issue(bridge: NotifyBridge, owner: str, repo: str, token: str) -> 
             title="Test Issue",
             message="Hello from notify-bridge! This is a test issue.",
             labels=["test", "notify-bridge"],
-            msg_type="text"
+            msg_type="text",
         )
         print(f"[+] Text issue created successfully: {response}")
     except NotificationError as e:
@@ -37,7 +37,7 @@ def test_text_issue(bridge: NotifyBridge, owner: str, repo: str, token: str) -> 
 
 def test_markdown_issue(bridge: NotifyBridge, owner: str, repo: str, token: str) -> None:
     """Test creating a markdown issue.
-    
+
     Args:
         bridge: NotifyBridge instance
         owner: Repository owner
@@ -54,7 +54,7 @@ def test_markdown_issue(bridge: NotifyBridge, owner: str, repo: str, token: str)
             title="Test Markdown Issue",
             message="# Hello from notify-bridge!\n\nThis is a **markdown** test issue.\n\n- Item 1\n- Item 2",
             labels=["test", "notify-bridge"],
-            msg_type="markdown"
+            msg_type="markdown",
         )
         print(f"[+] Markdown issue created successfully: {response}")
     except NotificationError as e:
@@ -63,7 +63,7 @@ def test_markdown_issue(bridge: NotifyBridge, owner: str, repo: str, token: str)
 
 async def test_async_issues(bridge: NotifyBridge, owner: str, repo: str, token: str) -> None:
     """Test creating issues asynchronously.
-    
+
     Args:
         bridge: NotifyBridge instance
         owner: Repository owner
@@ -81,7 +81,7 @@ async def test_async_issues(bridge: NotifyBridge, owner: str, repo: str, token: 
                 title="Async Test Issue 1",
                 message="Hello from notify-bridge! This is an async test issue.",
                 labels=["test", "notify-bridge", "async"],
-                msg_type="text"
+                msg_type="text",
             ),
             bridge.send_async(
                 "github",
@@ -91,8 +91,8 @@ async def test_async_issues(bridge: NotifyBridge, owner: str, repo: str, token: 
                 title="Async Test Issue 2",
                 message="# Hello from notify-bridge!\n\nThis is an async **markdown** test issue.",
                 labels=["test", "notify-bridge", "async"],
-                msg_type="markdown"
-            )
+                msg_type="markdown",
+            ),
         ]
         results = await asyncio.gather(*tasks)
         for i, response in enumerate(results):

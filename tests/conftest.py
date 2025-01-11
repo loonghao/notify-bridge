@@ -1,14 +1,17 @@
 """Test fixtures and utilities for notify-bridge tests."""
 
-# Import third-party modules
-from typing import Any, Dict
+# Import built-in modules
+from typing import Any
+from typing import Dict
 from unittest.mock import Mock
 
+# Import third-party modules
 import httpx
 import pytest
 
 # Import local modules
-from notify_bridge.components import BaseNotifier, NotificationSchema
+from notify_bridge.components import BaseNotifier
+from notify_bridge.components import NotificationSchema
 from notify_bridge.utils import HTTPClientConfig
 
 
@@ -17,7 +20,7 @@ class MockResponse:
 
     def __init__(self, status_code: int = 200, json_data: Dict[str, Any] = None):
         """Initialize mock response.
-        
+
         Args:
             status_code: HTTP status code
             json_data: JSON response data
@@ -32,31 +35,19 @@ class MockResponse:
     def raise_for_status(self):
         """Raise an exception if status code indicates an error."""
         if self.status_code >= 400:
-            raise httpx.HTTPStatusError(
-                "Mock HTTP error",
-                request=Mock(),
-                response=Mock(status_code=self.status_code)
-            )
+            raise httpx.HTTPStatusError("Mock HTTP error", request=Mock(), response=Mock(status_code=self.status_code))
 
 
 @pytest.fixture
 def mock_response() -> MockResponse:
     """Fixture for mock HTTP response."""
-    return MockResponse(
-        status_code=200,
-        json_data={"status": "success"}
-    )
+    return MockResponse(status_code=200, json_data={"status": "success"})
 
 
 @pytest.fixture
 def http_client_config() -> HTTPClientConfig:
     """Fixture for HTTP client configuration."""
-    return HTTPClientConfig(
-        timeout=5.0,
-        max_retries=1,
-        retry_delay=0.1,
-        verify_ssl=False
-    )
+    return HTTPClientConfig(timeout=5.0, max_retries=1, retry_delay=0.1, verify_ssl=False)
 
 
 class TestNotifier(BaseNotifier):
@@ -66,17 +57,14 @@ class TestNotifier(BaseNotifier):
 
     def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
         """Build notification payload.
-        
+
         Args:
             notification: Notification data.
 
         Returns:
             Dict[str, Any]: API payload.
         """
-        return {
-            "message": notification.content,
-            "title": notification.title
-        }
+        return {"message": notification.content, "title": notification.title}
 
 
 @pytest.fixture

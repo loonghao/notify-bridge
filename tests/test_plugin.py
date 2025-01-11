@@ -1,31 +1,40 @@
 """Tests for plugin utilities."""
 
 # Import built-in modules
-from typing import Any, Dict, Type
-from unittest.mock import Mock, patch
+from typing import Any
+from typing import Dict
+from typing import Type
+from unittest.mock import Mock
+from unittest.mock import patch
 
 # Import third-party modules
 import pytest
 
 # Import local modules
-from notify_bridge.components import BaseNotifier, NotificationResponse
+from notify_bridge.components import BaseNotifier
+from notify_bridge.components import NotificationResponse
 from notify_bridge.exceptions import PluginError
-from notify_bridge.plugin import get_notifiers_from_entry_points, load_notifier
+from notify_bridge.plugin import get_notifiers_from_entry_points
+from notify_bridge.plugin import load_notifier
 from notify_bridge.schema import NotificationSchema
 
 
 @pytest.fixture
 def test_schema():
     """Create a test schema class."""
+
     class TestSchema(NotificationSchema):
         """Test schema."""
+
         pass
+
     return TestSchema
 
 
 @pytest.fixture
 def test_notifier():
     """Create a test notifier class."""
+
     class TestNotifier(BaseNotifier):
         """Test notifier."""
 
@@ -89,12 +98,12 @@ def test_get_notifiers_from_entry_points(test_notifier):
         mock_entry_point.module = "notify_bridge.notifiers.test"
         mock_entry_point.attr = "TestNotifier"
         mock_entry_point.name = "test"
-        
+
         # Mock entry_points() behavior for Python 3.10+
         mock_select = Mock()
         mock_select.return_value = [mock_entry_point]
         mock_entry_points.return_value.select = mock_select
-        
+
         # Mock entry_points() behavior for Python 3.9 and below
         mock_entry_points.return_value.get = Mock(return_value=[mock_entry_point])
 
@@ -116,7 +125,8 @@ def test_load_plugins(tmp_path, monkeypatch):
     plugin_dir = tmp_path / "plugins"
     plugin_dir.mkdir()
     plugin_file = plugin_dir / "test_plugin.py"
-    plugin_file.write_text('''
+    plugin_file.write_text(
+        """
 from notify_bridge.components import BaseNotifier, NotificationResponse
 from notify_bridge.schema import NotificationSchema
 from typing import Dict, Any, Type
@@ -136,13 +146,16 @@ class TestPlugin(BaseNotifier):
 
     def build_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return {}
-''')
+"""
+    )
 
     # Add plugin directory to Python path
     monkeypatch.syspath_prepend(str(plugin_dir))
 
     # Test loading plugins
+    # Import local modules
     from notify_bridge.plugin import load_plugins
+
     plugins = load_plugins(str(plugin_dir))
     assert len(plugins) == 1
     assert "test_plugin" in plugins
@@ -155,7 +168,8 @@ def test_get_all_notifiers(tmp_path, monkeypatch, test_notifier):
     plugin_dir = tmp_path / "plugins"
     plugin_dir.mkdir()
     plugin_file = plugin_dir / "test_plugin.py"
-    plugin_file.write_text('''
+    plugin_file.write_text(
+        """
 from notify_bridge.components import BaseNotifier, NotificationResponse
 from notify_bridge.schema import NotificationSchema
 from typing import Dict, Any, Type
@@ -175,7 +189,8 @@ class TestPlugin(BaseNotifier):
 
     def build_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return {}
-''')
+"""
+    )
 
     # Add plugin directory to Python path
     monkeypatch.syspath_prepend(str(plugin_dir))
@@ -186,12 +201,12 @@ class TestPlugin(BaseNotifier):
         mock_entry_point.module = "notify_bridge.notifiers.test"
         mock_entry_point.attr = "TestNotifier"
         mock_entry_point.name = "test"
-        
+
         # Mock entry_points() behavior for Python 3.10+
         mock_select = Mock()
         mock_select.return_value = [mock_entry_point]
         mock_entry_points.return_value.select = mock_select
-        
+
         # Mock entry_points() behavior for Python 3.9 and below
         mock_entry_points.return_value.get = Mock(return_value=[mock_entry_point])
 
@@ -201,7 +216,9 @@ class TestPlugin(BaseNotifier):
             return_value=test_notifier,
         ):
             # Test getting all notifiers
+            # Import local modules
             from notify_bridge.plugin import get_all_notifiers
+
             notifiers = get_all_notifiers(str(plugin_dir))
             assert len(notifiers) >= 2  # At least the test notifier and test plugin
             assert test_notifier.name.lower() in notifiers
@@ -214,7 +231,8 @@ def test_get_notifier_class(tmp_path, monkeypatch, test_notifier):
     plugin_dir = tmp_path / "plugins"
     plugin_dir.mkdir()
     plugin_file = plugin_dir / "test_plugin.py"
-    plugin_file.write_text('''
+    plugin_file.write_text(
+        """
 from notify_bridge.components import BaseNotifier, NotificationResponse
 from notify_bridge.schema import NotificationSchema
 from typing import Dict, Any, Type
@@ -234,7 +252,8 @@ class TestPlugin(BaseNotifier):
 
     def build_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return {}
-''')
+"""
+    )
 
     # Add plugin directory to Python path
     monkeypatch.syspath_prepend(str(plugin_dir))
@@ -245,12 +264,12 @@ class TestPlugin(BaseNotifier):
         mock_entry_point.module = "notify_bridge.notifiers.test"
         mock_entry_point.attr = "TestNotifier"
         mock_entry_point.name = "test"
-        
+
         # Mock entry_points() behavior for Python 3.10+
         mock_select = Mock()
         mock_select.return_value = [mock_entry_point]
         mock_entry_points.return_value.select = mock_select
-        
+
         # Mock entry_points() behavior for Python 3.9 and below
         mock_entry_points.return_value.get = Mock(return_value=[mock_entry_point])
 
@@ -260,6 +279,7 @@ class TestPlugin(BaseNotifier):
             return_value=test_notifier,
         ):
             # Test getting notifier class
+            # Import local modules
             from notify_bridge.plugin import get_notifier_class
 
             # Test getting existing notifier
@@ -277,7 +297,9 @@ class TestPlugin(BaseNotifier):
 
 def test_load_plugins_invalid_directory():
     """Test loading plugins from an invalid directory."""
+    # Import local modules
     from notify_bridge.plugin import load_plugins
+
     plugins = load_plugins("/non/existent/directory")
     assert len(plugins) == 0
 
@@ -285,9 +307,11 @@ def test_load_plugins_invalid_directory():
 def test_load_plugins_invalid_plugin():
     """Test loading an invalid plugin."""
     # Create a temporary plugin file with invalid code
-    with patch("os.path.exists", return_value=True), \
-         patch("os.listdir", return_value=["invalid_plugin.py"]), \
-         patch("importlib.import_module", side_effect=ImportError):
+    with patch("os.path.exists", return_value=True), patch("os.listdir", return_value=["invalid_plugin.py"]), patch(
+        "importlib.import_module", side_effect=ImportError
+    ):
+        # Import local modules
         from notify_bridge.plugin import load_plugins
+
         plugins = load_plugins("/test/plugins")
         assert len(plugins) == 0

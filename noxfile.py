@@ -69,6 +69,7 @@ def pytest(session: nox.Session) -> None:
         },
     )
 
+
 @nox.session
 def lint(session: nox.Session) -> None:
     """Run linting checks.

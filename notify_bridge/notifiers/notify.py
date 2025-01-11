@@ -5,24 +5,30 @@ This module provides the Notify notification implementation.
 
 # Import built-in modules
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 # Import third-party modules
 from pydantic import Field
 
 # Import local modules
-from notify_bridge.components import BaseNotifier, MessageType, NotificationError, NotificationSchema
+from notify_bridge.components import BaseNotifier
+from notify_bridge.components import MessageType
+from notify_bridge.components import NotificationSchema
 from notify_bridge.exceptions import NotificationError
+
 
 logger = logging.getLogger(__name__)
 
 
 class NotifySchema(NotificationSchema):
     """Schema for Notify notifications."""
-    base_url: str
-    token: Optional[str] = None
-    tags: Optional[list[str]] = None
-    icon: Optional[str] = None
+
+    base_url: str = Field(..., description="Base URL for notify service")
+    token: Optional[str] = Field(None, description="Bearer token")
+    tags: Optional[list[str]] = Field(None, description="Tags for the notification")
+    icon: Optional[str] = Field(None, description="Icon URL")
     webhook_url: Optional[str] = None
     headers: Dict[str, str] = Field(default_factory=dict)
 
@@ -76,11 +82,10 @@ class NotifyNotifier(BaseNotifier):
             "message": notification.content,
         }
 
-        # Only add optional fields if they exist and have values
-        notify_schema = notification if isinstance(notification, NotifySchema) else None
-        if notify_schema and notify_schema.icon:
-            payload["icon"] = notify_schema.icon
-        if notify_schema and notify_schema.tags:
-            payload["tags"] = notify_schema.tags
+        # Add optional fields
+        if notification.icon:
+            payload["icon"] = notification.icon
+        if notification.tags:
+            payload["tags"] = notification.tags
 
         return payload

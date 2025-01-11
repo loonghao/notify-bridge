@@ -1,40 +1,44 @@
 """Tests for GitHub notifier."""
 
-# Import built-in modules
-import pytest
-
 # Import third-party modules
 from pydantic import ValidationError
+import pytest
 
 # Import local modules
-from notify_bridge.components import MessageType, NotificationError
-from notify_bridge.notifiers.github import GitHubNotifier, GitHubSchema
+from notify_bridge.components import MessageType
+from notify_bridge.components import NotificationError
+from notify_bridge.notifiers.github import GitHubNotifier
+from notify_bridge.notifiers.github import GitHubSchema
 
 
 def test_github_schema_validation():
     """Test GitHub schema validation."""
-    # Test valid schema
+    # Test valid schema with new usage
     valid_data = {
         "owner": "test-owner",
         "repo": "test-repo",
         "token": "test-token",
         "title": "Test Issue",
-        "content": "Test content",
+        "message": "Test content",  # Using message instead of content
         "labels": ["bug", "help wanted"],
         "assignees": ["user1", "user2"],
-        "milestone": 1
+        "milestone": 1,
+        "msg_type": "text",
     }
     schema = GitHubSchema(**valid_data)
     assert schema.owner == "test-owner"
     assert schema.repo == "test-repo"
     assert schema.token == "test-token"
+    assert schema.content == "Test content"  # Verify content is set from message
     assert schema.labels == ["bug", "help wanted"]
     assert schema.assignees == ["user1", "user2"]
     assert schema.milestone == 1
+    assert schema.msg_type == MessageType.TEXT
 
     # Test required fields
     with pytest.raises(ValidationError):
         GitHubSchema(title="Test")  # Missing required fields
+
 
 def test_github_notifier_initialization():
     """Test GitHub notifier initialization."""
@@ -43,6 +47,7 @@ def test_github_notifier_initialization():
     assert notifier.schema_class == GitHubSchema
     assert MessageType.TEXT in notifier.supported_types
     assert MessageType.MARKDOWN in notifier.supported_types
+
 
 def test_github_headers():
     """Test GitHub headers generation."""
@@ -54,17 +59,19 @@ def test_github_headers():
     assert headers["Authorization"] == f"Bearer {token}"
     assert headers["X-GitHub-Api-Version"] == "2022-11-28"
 
+
 def test_github_build_payload():
     """Test GitHub payload building."""
     notifier = GitHubNotifier()
 
-    # Test with minimal data
+    # Test with minimal data using new usage
     minimal_data = {
         "owner": "test-owner",
         "repo": "test-repo",
         "token": "test-token",
         "title": "Test Issue",
-        "content": "Test content"
+        "message": "Test content",  # Using message instead of content
+        "msg_type": "text",
     }
     notification = GitHubSchema(**minimal_data)
     payload = notifier.build_payload(notification)
@@ -75,16 +82,17 @@ def test_github_build_payload():
     assert "assignees" not in payload
     assert "milestone" not in payload
 
-    # Test with all optional fields
+    # Test with all optional fields using new usage
     full_data = {
         "owner": "test-owner",
         "repo": "test-repo",
         "token": "test-token",
         "title": "Test Issue",
-        "content": "Test content",
+        "message": "Test content",  # Using message instead of content
         "labels": ["bug"],
         "assignees": ["user1"],
-        "milestone": 1
+        "milestone": 1,
+        "msg_type": "text",
     }
     notification = GitHubSchema(**full_data)
     payload = notifier.build_payload(notification)
@@ -99,6 +107,7 @@ def test_github_build_payload():
     with pytest.raises(NotificationError):
         notifier.build_payload(object())  # Pass invalid schema object
 
+
 def test_github_webhook_url():
     """Test GitHub webhook URL generation."""
     notifier = GitHubNotifier()
@@ -107,7 +116,8 @@ def test_github_webhook_url():
         "repo": "test-repo",
         "token": "test-token",
         "title": "Test Issue",
-        "content": "Test content"
+        "message": "Test content",  # Using message instead of content
+        "msg_type": "text",
     }
     notification = GitHubSchema(**data)
     notifier.build_payload(notification)

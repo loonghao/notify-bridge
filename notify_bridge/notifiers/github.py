@@ -5,25 +5,34 @@ This module provides the GitHub Issues notification implementation.
 
 # Import built-in modules
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 # Import third-party modules
 from pydantic import Field
 
 # Import local modules
-from notify_bridge.components import BaseNotifier, MessageType, NotificationError, NotificationSchema
+from notify_bridge.components import BaseNotifier
+from notify_bridge.components import MessageType
+from notify_bridge.components import NotificationError
+from notify_bridge.components import NotificationSchema
+
 
 logger = logging.getLogger(__name__)
 
 
 class GitHubSchema(NotificationSchema):
     """Schema for GitHub notifications."""
+
     owner: str = Field(..., description="Repository owner")
     repo: str = Field(..., description="Repository name")
     token: str = Field(..., description="GitHub personal access token")
     labels: Optional[List[str]] = Field(None, description="Issue labels")
     assignees: Optional[List[str]] = Field(None, description="Issue assignees")
     milestone: Optional[int] = Field(None, description="Issue milestone number")
+    new_field: Optional[str] = Field(None, description="New field for new usage")
 
 
 class GitHubNotifier(BaseNotifier):
@@ -45,7 +54,7 @@ class GitHubNotifier(BaseNotifier):
         return {
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {token}",
-            "X-GitHub-Api-Version": "2022-11-28"
+            "X-GitHub-Api-Version": "2022-11-28",
         }
 
     def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
@@ -71,10 +80,7 @@ class GitHubNotifier(BaseNotifier):
         notification.headers.update(self._get_headers(notification.token))
 
         # Build basic payload
-        payload = {
-            "title": notification.title or "New Issue",
-            "body": notification.content
-        }
+        payload = {"title": notification.title or "New Issue", "body": notification.content}
 
         # Add optional fields
         if notification.labels:
@@ -83,5 +89,7 @@ class GitHubNotifier(BaseNotifier):
             payload["assignees"] = notification.assignees
         if notification.milestone:
             payload["milestone"] = notification.milestone
+        if notification.new_field:
+            payload["new_field"] = notification.new_field
 
         return payload
