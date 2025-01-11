@@ -38,6 +38,15 @@ class NotifierFactory:
         """
         self._notifier_classes[name] = notifier_class
 
+    def unregister_notifier(self, name: str) -> None:
+        """Unregister a notifier class.
+
+        Args:
+            name: Name of the notifier to unregister.
+        """
+        if name in self._notifier_classes:
+            del self._notifier_classes[name]
+
     def get_notifier_class(self, name: str) -> Optional[Type[BaseNotifier]]:
         """Get a notifier class by name.
 
@@ -97,8 +106,7 @@ class NotifierFactory:
             NoSuchNotifierError: If the specified notifier is not found.
         """
         notifier = self.create_notifier(name, client=client)
-        return notifier.notify(notification)
-
+        return notifier.notify(notification, **kwargs)
 
     async def anotify(
         self,
@@ -122,4 +130,4 @@ class NotifierFactory:
             NoSuchNotifierError: If the specified notifier is not found.
         """
         notifier = self.create_notifier(name, client=client)
-        return await notifier.anotify(notification)
+        return await notifier.anotify(notification, **kwargs)

@@ -5,10 +5,10 @@ import os
 
 # Import third-party modules
 from dotenv import load_dotenv
+from run_feishu import run_feishu
 
 # Import local modules
 from run_wecom import run_wecom
-from run_feishu import run_feishu
 
 
 def main():

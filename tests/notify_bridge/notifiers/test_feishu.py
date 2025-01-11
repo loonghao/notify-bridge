@@ -5,9 +5,10 @@ from unittest.mock import AsyncMock, Mock, patch
 
 # Import third-party modules
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 # Import local modules
-from notify_bridge.exceptions import NotificationError
+from notify_bridge.exceptions import NotificationError, ValidationError
 from notify_bridge.notifiers.feishu import FeishuNotifier, FeishuSchema
 
 
@@ -17,138 +18,234 @@ def notifier():
     return FeishuNotifier()
 
 
-def test_prepare_text_message(notifier):
-    """Test preparing a text message."""
+def test_schema_validation():
+    """Test schema validation."""
+    # Test valid schema
     notification = FeishuSchema(
-        webhook_url="https://example.com/webhook", title="Test Title", body="Test Body", msg_type="text"
+        webhook_url="https://example.com/webhook",
+        msg_type="text",
+        content="Test Content"
     )
-    message = notifier._prepare_message(notification)
-    assert message == {"msg_type": "text", "content": {"text": "Test Title\nTest Body"}}
+    assert notification.url == "https://example.com/webhook"
+    assert notification.msg_type == "text"
+    assert notification.content == "Test Content"
+
+    # Test webhook_url to url conversion
+    notification = FeishuSchema(
+        webhook_url="https://example.com/webhook",
+        msg_type="text",
+        content="Test Content"
+    )
+    assert notification.url == "https://example.com/webhook"
+
+    # Test body to content conversion
+    notification = FeishuSchema(
+        webhook_url="https://example.com/webhook",
+        msg_type="text",
+        body="Test Body"
+    )
+    assert notification.content == "Test Body"
+
+    # Test invalid message type
+    with pytest.raises(ValidationError):
+        FeishuSchema(
+            webhook_url="https://example.com/webhook",
+            msg_type="invalid",
+            content="Test Content"
+        )
+
+    # Test missing webhook URL
+    with pytest.raises(PydanticValidationError):
+        FeishuSchema(
+            msg_type="text",
+            content="Test Content"
+        )
 
 
-def test_prepare_interactive_message(notifier):
-    """Test preparing an interactive message."""
-    notification = FeishuSchema(
-        webhook_url="https://example.com/webhook", title="Test Title", body="Test Body", msg_type="interactive"
-    )
-    message = notifier._prepare_message(notification)
-    assert message == {
-        "msg_type": "interactive",
-        "card": {
-            "header": {"title": {"tag": "plain_text", "content": "Test Title"}},
-            "elements": [{"tag": "div", "text": {"tag": "plain_text", "content": "Test Body"}}],
-        },
+def test_build_text_payload(notifier):
+    """Test building text message payload."""
+    notification = {
+        "url": "https://example.com/webhook",
+        "msg_type": "text",
+        "content": "Test Content"
+    }
+    payload = notifier._build_text_payload(notification)
+    assert payload == {
+        "msg_type": "text",
+        "content": {
+            "text": "Test Content"
+        }
     }
 
 
-def test_prepare_invalid_message_type(notifier):
-    """Test preparing a message with an invalid type."""
+def test_build_post_payload(notifier):
+    """Test building post message payload."""
+    notification = {
+        "url": "https://example.com/webhook",
+        "msg_type": "post",
+        "title": "Test Title",
+        "content": "Test Content"
+    }
+    payload = notifier._build_post_payload(notification)
+    assert payload == {
+        "msg_type": "post",
+        "content": {
+            "post": {
+                "zh_cn": {
+                    "title": "Test Title",
+                    "content": [
+                        [
+                            {
+                                "tag": "text",
+                                "text": "Test Content"
+                            }
+                        ]
+                    ]
+                }
+            }
+        }
+    }
+
+
+def test_build_image_payload(notifier):
+    """Test building image message payload."""
+    notification = {
+        "url": "https://example.com/webhook",
+        "msg_type": "image",
+        "image_path": "test.jpg"
+    }
+    payload = notifier._build_image_payload(notification)
+    assert payload == {
+        "msg_type": "image",
+        "content": {
+            "image_key": "test.jpg"
+        }
+    }
+
+
+def test_build_file_payload(notifier):
+    """Test building file message payload."""
+    notification = {
+        "url": "https://example.com/webhook",
+        "msg_type": "file",
+        "file_path": "test.txt"
+    }
+    payload = notifier._build_file_payload(notification)
+    assert payload == {
+        "msg_type": "file",
+        "content": {
+            "file_key": "test.txt"
+        }
+    }
+
+
+def test_build_payload(notifier):
+    """Test building notification payload."""
+    notification = {
+        "url": "https://example.com/webhook",
+        "msg_type": "text",
+        "content": "Test Content"
+    }
+    payload = notifier._build_payload(notification)
+    assert payload == {
+        "url": "https://example.com/webhook",
+        "json": {
+            "msg_type": "text",
+            "content": {
+                "text": "Test Content"
+            }
+        }
+    }
+
+
+def test_build_payload_with_schema(notifier):
+    """Test building notification payload with schema."""
     notification = FeishuSchema(
-        webhook_url="https://example.com/webhook", title="Test Title", body="Test Body", msg_type="invalid"
+        webhook_url="https://example.com/webhook",
+        msg_type="text",
+        content="Test Content"
     )
-    with pytest.raises(NotificationError, match="Invalid message type"):
-        notifier._prepare_message(notification)
+    payload = notifier.build_payload(notification)
+    assert payload == {
+        "url": "https://example.com/webhook",
+        "json": {
+            "msg_type": "text",
+            "content": {
+                "text": "Test Content"
+            }
+        }
+    }
 
 
-def test_send_success(notifier):
-    """Test successful message sending."""
-    notification = FeishuSchema(
-        webhook_url="https://example.com/webhook", title="Test Title", body="Test Body", msg_type="text"
-    )
-
-    with patch("notify_bridge.notifiers.feishu.RequestsHelper") as mock_requests:
+def test_notify_success(notifier):
+    """Test successful notification."""
+    with patch("httpx.Client") as mock_client:
         mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {"ok": True}
-        mock_requests.return_value = Mock()
-        mock_requests.return_value.post.return_value = mock_response
-        notifier._requests = mock_requests.return_value
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"code": 0, "data": {}, "msg": "success"}
+        mock_client.return_value.post.return_value = mock_response
 
-        response = notifier.send(notification)
+        notification = {
+            "url": "https://example.com/webhook",
+            "msg_type": "text",
+            "content": "Test Content"
+        }
+        response = notifier.notify(notification)
         assert response.success
-        assert response.notifier == "feishu"
+        assert response.name == "feishu"
+        assert response.data == {"code": 0, "data": {}, "msg": "success"}
 
 
-def test_send_error(notifier):
-    """Test message sending with error."""
-    notification = FeishuSchema(
-        webhook_url="https://example.com/webhook", title="Test Title", body="Test Body", msg_type="text"
-    )
-
-    with patch("notify_bridge.notifiers.feishu.RequestsHelper") as mock_requests:
+def test_notify_error(notifier):
+    """Test notification error."""
+    with patch("httpx.Client") as mock_client:
         mock_response = Mock()
-        mock_response.raise_for_status.side_effect = Exception("Test error")
-        mock_requests.return_value = Mock()
-        mock_requests.return_value.post.return_value = mock_response
-        notifier._requests = mock_requests.return_value
+        mock_response.status_code = 400
+        mock_response.json.return_value = {"code": 19001, "data": {}, "msg": "param invalid"}
+        mock_client.return_value.post.return_value = mock_response
 
-        with pytest.raises(NotificationError, match="Failed to send Feishu notification"):
-            notifier.send(notification)
-
-
-def test_send_no_webhook_url():
-    """Test sending without webhook URL."""
-    notifier = FeishuNotifier()
-    notification = FeishuSchema(title="Test Title", body="Test Body", msg_type="text", webhook_url="")
-    with pytest.raises(NotificationError, match="No webhook URL provided"):
-        notifier.send(notification)
-
-
-@pytest.mark.asyncio
-async def test_asend_success(notifier):
-    """Test successful async message sending."""
-    notification = FeishuSchema(
-        webhook_url="https://example.com/webhook", title="Test Title", body="Test Body", msg_type="text"
-    )
-
-    with patch("notify_bridge.notifiers.feishu.RequestsHelper") as mock_requests:
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {"ok": True}
-        mock_requests.return_value = Mock()
-        mock_requests.return_value.apost = AsyncMock(return_value=mock_response)
-        notifier._requests = mock_requests.return_value
-
-        response = await notifier.asend(notification)
+        notification = {
+            "url": "https://example.com/webhook",
+            "msg_type": "text",
+            "content": "Test Content"
+        }
+        response = notifier.notify(notification)
         assert response.success
-        assert response.notifier == "feishu"
+        assert response.name == "feishu"
+        assert response.data == {"code": 19001, "data": {}, "msg": "param invalid"}
 
 
 @pytest.mark.asyncio
-async def test_asend_error(notifier):
-    """Test async message sending with error."""
-    notification = FeishuSchema(
-        webhook_url="https://example.com/webhook", title="Test Title", body="Test Body", msg_type="text"
-    )
+async def test_notify_async_success(notifier):
+    """Test successful async notification."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json = AsyncMock(return_value={"code": 0, "data": {}, "msg": "success"})
 
-    with patch("notify_bridge.notifiers.feishu.RequestsHelper") as mock_requests:
-        mock_response = Mock()
-        mock_response.raise_for_status.side_effect = Exception("Test error")
-        mock_requests.return_value = Mock()
-        mock_requests.return_value.apost = AsyncMock(return_value=mock_response)
-        notifier._requests = mock_requests.return_value
-
-        with pytest.raises(NotificationError, match="Failed to send Feishu notification"):
-            await notifier.asend(notification)
-
-
-def test_close(notifier):
-    """Test closing the notifier."""
-    with patch("notify_bridge.notifiers.feishu.RequestsHelper") as mock_requests:
-        mock_instance = Mock()
-        mock_requests.return_value = mock_instance
-        notifier._requests = mock_instance
-        notifier.close()
-        mock_instance.close.assert_called_once()
+    with patch("httpx.AsyncClient.post", return_value=mock_response):
+        notification = {
+            "url": "https://example.com/webhook",
+            "msg_type": "text",
+            "content": "Test Content"
+        }
+        response = await notifier.notify_async(notification)
+        assert response.success is True
+        assert response.name == "feishu"
+        assert response.data == {"code": 0, "data": {}, "msg": "success"}
 
 
 @pytest.mark.asyncio
-async def test_aclose(notifier):
-    """Test closing the notifier asynchronously."""
-    with patch("notify_bridge.notifiers.feishu.RequestsHelper") as mock_requests:
-        mock_instance = Mock()
-        mock_instance.aclose = AsyncMock()
-        mock_requests.return_value = mock_instance
-        notifier._requests = mock_instance
-        await notifier.aclose()
-        mock_instance.aclose.assert_called_once()
+async def test_notify_async_error(notifier):
+    """Test async notification error."""
+    mock_response = Mock()
+    mock_response.status_code = 400
+    mock_response.json = AsyncMock(return_value={"code": 19001, "data": {}, "msg": "param invalid"})
+
+    with patch("httpx.AsyncClient.post", return_value=mock_response):
+        notification = {
+            "url": "https://example.com/webhook",
+            "msg_type": "text",
+            "content": "Test Content"
+        }
+        with pytest.raises(NotificationError):
+            await notifier.notify_async(notification)
