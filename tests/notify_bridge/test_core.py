@@ -2,7 +2,7 @@
 
 # Import built-in modules
 from typing import Any, Dict
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 # Import third-party modules
 import httpx

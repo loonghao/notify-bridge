@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 # Import third-party modules
 import pytest
+
 from notify_bridge.components import BaseNotifier, NotificationResponse
 
 # Import local modules
