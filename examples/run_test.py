@@ -6,7 +6,9 @@ import os
 # Import third-party modules
 from dotenv import load_dotenv
 from run_github import run_github
-
+from run_feishu import run_feishu
+from run_wecom import run_wecom
+from run_notify import run_notify
 
 def main():
     """Run all test scripts."""
@@ -22,10 +24,10 @@ def main():
 
     if "NOTIFY_BASE_URL" not in os.environ:
         os.environ["NOTIFY_BASE_URL"] = "https://notify-demo.deno.dev"
-    # run_wecom()
-    # run_feishu()
-    # run_notify()
-    run_github()
+    run_wecom()
+    run_feishu()
+    run_notify()
+    # run_github()
 
 
 if __name__ == "__main__":

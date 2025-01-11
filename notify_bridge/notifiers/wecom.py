@@ -114,7 +114,13 @@ class WeComNotifier(BaseNotifier):
 
         Returns:
             Dict[str, Any]: Text message payload.
+
+        Raises:
+            NotificationError: If content is missing.
         """
+        if not notification.content:
+            raise NotificationError("content is required for text messages")
+
         return {
             "msgtype": "text",
             "text": {
@@ -132,7 +138,13 @@ class WeComNotifier(BaseNotifier):
 
         Returns:
             Dict[str, Any]: Markdown message payload.
+
+        Raises:
+            NotificationError: If content is missing.
         """
+        if not notification.content:
+            raise NotificationError("content is required for markdown messages")
+
         return {
             "msgtype": "markdown",
             "markdown": {

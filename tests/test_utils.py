@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock
 
 import httpx
 import pytest
+
 from notify_bridge.utils import AsyncHTTPClient, HTTPClient, HTTPClientConfig, LogConfig, log_call, setup_logging
 
 

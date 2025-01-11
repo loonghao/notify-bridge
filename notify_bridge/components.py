@@ -64,7 +64,7 @@ class NotificationResponse(BaseModel):
     data: Optional[Dict[str, Any]] = Field(None, description="Additional response data")
 
 
-class ABSTRACTNotifier(ABC):
+class AbstractNotifier(ABC):
     """Abstract base class for all notifiers."""
 
     name: str = ""
@@ -179,7 +179,7 @@ class ABSTRACTNotifier(ABC):
             ).model_dump()
 
 
-class BaseNotifier(ABSTRACTNotifier):
+class BaseNotifier(AbstractNotifier):
     """Base implementation of notifier with common functionality."""
 
     def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:

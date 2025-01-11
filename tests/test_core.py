@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, Mock, patch
 # Import third-party modules
 import httpx
 import pytest
+
 from notify_bridge.components import WebhookNotifier
 
 # Import local modules

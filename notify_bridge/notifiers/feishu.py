@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional
 
 # Import third-party modules
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 # Import local modules
 from notify_bridge.components import BaseNotifier, MessageType, NotificationError, NotificationSchema
@@ -62,58 +62,6 @@ class FeishuSchema(NotificationSchema):
         description="Card elements"
     )
 
-    @field_validator("content")
-    @classmethod
-    def validate_content(cls, v: Optional[str], info: Dict[str, Any]) -> Optional[str]:
-        """Validate content field.
-
-        Content is required for text messages, optional for others.
-        """
-        msg_type = info.data.get("msg_type")
-        if msg_type == MessageType.TEXT and not v:
-            raise ValueError("content is required for text messages")
-        return v
-
-    @field_validator("post_content")
-    @classmethod
-    def validate_post_content(cls, v: Optional[Dict[str, Any]], info: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Validate post_content field.
-
-        post_content is required for post messages, optional for others.
-        """
-        msg_type = info.data.get("msg_type")
-        if msg_type == MessageType.POST and not v:
-            raise ValueError("post_content is required for post messages")
-        return v
-
-    @field_validator("card_header")
-    @classmethod
-    def validate_card_header(cls, v: Optional[CardHeader], info: Dict[str, Any]) -> Optional[CardHeader]:
-        """Validate card_header field.
-
-        card_header is required for interactive messages, optional for others.
-        """
-        msg_type = info.data.get("msg_type")
-        if msg_type == MessageType.INTERACTIVE and not v:
-            raise ValueError("card_header is required for interactive messages")
-        return v
-
-    @field_validator("card_elements")
-    @classmethod
-    def validate_card_elements(cls, v: Optional[List[Dict[str, Any]]], info: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
-        """Validate card_elements field.
-
-        card_elements is required for interactive messages, optional for others.
-        """
-        msg_type = info.data.get("msg_type")
-        if msg_type == MessageType.INTERACTIVE and not v:
-            raise ValueError("card_elements is required for interactive messages")
-        return v
-
-    class Config:
-        """Pydantic model configuration."""
-        populate_by_name = True
-
 
 class FeishuNotifier(BaseNotifier):
     """Feishu notifier implementation."""
@@ -136,7 +84,13 @@ class FeishuNotifier(BaseNotifier):
 
         Returns:
             Dict[str, Any]: Text message payload.
+
+        Raises:
+            NotificationError: If content is missing.
         """
+        if not notification.content:
+            raise NotificationError("content is required for text messages")
+
         return {
             "msg_type": "text",
             "content": {
@@ -152,9 +106,12 @@ class FeishuNotifier(BaseNotifier):
 
         Returns:
             Dict[str, Any]: Post message payload.
+
+        Raises:
+            NotificationError: If post_content is missing.
         """
         if not notification.post_content:
-            raise NotificationError("post_content is required for post message")
+            raise NotificationError("post_content is required for post messages")
 
         return {
             "msg_type": "post",
@@ -280,27 +237,29 @@ class FeishuNotifier(BaseNotifier):
 
         Returns:
             Dict[str, Any]: Interactive message payload.
+
+        Raises:
+            NotificationError: If card_header or card_elements is missing.
         """
         if not notification.card_header:
-            raise NotificationError("card_header is required for interactive message")
+            raise NotificationError("card_header is required for interactive messages")
         if not notification.card_elements:
-            raise NotificationError("card_elements is required for interactive message")
+            raise NotificationError("card_elements is required for interactive messages")
 
-        card_config = notification.card_config or CardConfig()
         return {
             "msg_type": "interactive",
             "card": {
-                "config": {
-                    "wide_screen_mode": card_config.wide_screen_mode
-                },
                 "header": {
                     "title": {
                         "tag": "plain_text",
-                        "content": notification.card_header.title
-                    },
-                    "template": notification.card_header.template
+                        "content": notification.card_header.title,
+                        "template": notification.card_header.template
+                    }
                 },
-                "elements": notification.card_elements
+                "elements": notification.card_elements,
+                "config": {
+                    "wide_screen_mode": notification.card_config.wide_screen_mode if notification.card_config else True
+                }
             }
         }
 
