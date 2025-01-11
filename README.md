@@ -14,170 +14,248 @@
 ![Codecov](https://img.shields.io/codecov/c/github/loonghao/notify-bridge)
 </div>
 
+一个灵活的通知桥接器，用于向各种平台发送消息。
 
-A flexible notification bridge for sending messages to various platforms.
+## 特性
 
-## Features
+- 🚀 简单直观的 API
+- 🔌 插件系统，方便扩展
+- 🔄 同时支持同步和异步操作
+- 🛡️ 使用 Pydantic 模型进行类型安全验证
+- 📝 丰富的消息格式（文本、Markdown 等）
+- 🌐 支持多个平台
 
-- 🚀 Simple and intuitive API
-- 🔌 Plugin system for easy extension
-- 🔄 Both synchronous and asynchronous support
-- 🛡️ Type-safe with Pydantic models
-- 📝 Rich message formats (text, markdown, etc.)
-- 🌐 Multiple platform support
-
-## Installation
+## 安装
 
 ```bash
 pip install notify-bridge
 ```
 
-## Quick Start
+## 快速开始
 
 ```python
 from notify_bridge import NotifyBridge
 
-# Create a bridge instance
+# 创建桥接器实例
 bridge = NotifyBridge()
 
-# Send a notification synchronously
+# 同步发送通知
 response = bridge.notify(
     "feishu",
     webhook_url="YOUR_WEBHOOK_URL",
-    title="Test Message",
-    body="Hello from notify-bridge!",
+    title="测试消息",
+    content="来自 notify-bridge 的问候！",
     msg_type="text"
 )
 print(response)
 
-# Send a notification asynchronously
+# 异步发送通知
 async def send_async():
     response = await bridge.anotify(
         "feishu",
         webhook_url="YOUR_WEBHOOK_URL",
-        title="Async Test Message",
-        body="# Hello from notify-bridge!\n\nThis is a **markdown** message.",
-        msg_type="interactive"
+        title="异步测试消息",
+        content="# 来自 notify-bridge 的问候！\n\n这是一条 **Markdown** 消息。",
+        msg_type="post"
     )
     print(response)
 ```
 
-## Supported Platforms
+## 支持的平台
 
-- [x] Feishu (飞书)
-- [ ] DingTalk (钉钉)
-- [x] WeChat Work (企业微信)
-- [ ] Email
+- [x] 飞书 (Feishu)
+- [x] 企业微信 (WeCom)
+- [ ] 钉钉 (DingTalk)
+- [ ] 电子邮件 (Email)
 - [ ] Slack
 - [ ] Discord
 
-## Creating a Plugin
+## 使用示例
 
-1. Create a new notifier class:
+### 飞书 (Feishu)
+
+```python
+# 发送文本消息
+bridge.notify(
+    "feishu",
+    webhook_url="YOUR_WEBHOOK_URL",
+    content="这是一条文本消息",
+    msg_type="text"
+)
+
+# 发送富文本消息
+bridge.notify(
+    "feishu",
+    webhook_url="YOUR_WEBHOOK_URL",
+    title="消息标题",
+    content="这是一条富文本消息的内容",
+    msg_type="post"
+)
+
+# 发送图片消息
+bridge.notify(
+    "feishu",
+    webhook_url="YOUR_WEBHOOK_URL",
+    image_path="path/to/image.jpg",  # 或者使用 image_key
+    msg_type="image"
+)
+
+# 发送文件消息
+bridge.notify(
+    "feishu",
+    webhook_url="YOUR_WEBHOOK_URL",
+    file_path="path/to/document.pdf",  # 或者使用 file_key
+    msg_type="file"
+)
+```
+
+### 企业微信 (WeCom)
+
+```python
+# 发送文本消息
+bridge.notify(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    content="这是一条文本消息",
+    msg_type="text"
+)
+
+# 发送 Markdown 消息
+bridge.notify(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    content="**粗体文本**\n> 引用\n[链接](https://example.com)",
+    msg_type="markdown"
+)
+
+# 发送图文消息
+bridge.notify(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    title="图文消息标题",
+    content="图文消息描述",
+    msg_type="news",
+    articles=[{
+        "title": "文章标题",
+        "description": "文章描述",
+        "url": "https://example.com",
+        "picurl": "https://example.com/image.jpg"
+    }]
+)
+```
+
+## 创建插件
+
+1. 创建通知器类：
 
 ```python
 from notify_bridge.types import BaseNotifier, NotificationSchema
 from pydantic import Field
 
 class MySchema(NotificationSchema):
+    """自定义通知模式。"""
     webhook_url: str = Field(..., description="Webhook URL")
-    title: str = Field(..., description="Message title")
-    body: str = Field(..., description="Message body")
+    title: str = Field(None, description="消息标题")
+    content: str = Field(..., description="消息内容")
+    msg_type: str = Field("text", description="消息类型")
 
 class MyNotifier(BaseNotifier):
-    name = "my_notifier"
-    schema = MySchema
+    """自定义通知器。"""
+    name = "my_notifier"  # 通知器名称
+    schema = MySchema     # 通知器模式
 
-    def send(self, notification: NotificationSchema):
-        # Implement your notification logic here
+    def notify(self, notification: NotificationSchema) -> NotificationResponse:
+        """同步发送通知。"""
+        # 实现你的通知逻辑
         pass
 
-    async def asend(self, notification: NotificationSchema):
-        # Implement your async notification logic here
+    async def notify_async(self, notification: NotificationSchema) -> NotificationResponse:
+        """异步发送通知。"""
+        # 实现你的异步通知逻辑
         pass
 ```
 
-2. Register your plugin in `pyproject.toml`:
+2. 在 `pyproject.toml` 中注册你的插件：
 
 ```toml
 [project.entry-points."notify_bridge.notifiers"]
 my_notifier = "my_package.my_module:MyNotifier"
 ```
 
-## Configuration
+## 错误处理
 
-Each notifier has its own configuration schema. Here are some examples:
-
-### Feishu Example
 ```python
-# Send a text message
+from notify_bridge.exceptions import NotificationError, ValidationError
+
+try:
+    response = bridge.notify(
+        "feishu",
+        webhook_url="YOUR_WEBHOOK_URL",
+        content="测试消息",
+        msg_type="text"
+    )
+except ValidationError as e:
+    print(f"验证错误：{e}")
+except NotificationError as e:
+    print(f"通知错误：{e}")
+```
+
+## 环境变量
+
+你可以使用环境变量来存储敏感信息，比如 webhook URL：
+
+```python
+# .env
+FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+WECOM_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx
+
+# Python 代码
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 bridge.notify(
     "feishu",
-    webhook_url="YOUR_WEBHOOK_URL",
-    title="Message Title",
-    body="Message Body",
+    webhook_url=os.getenv("FEISHU_WEBHOOK_URL"),
+    content="测试消息",
     msg_type="text"
 )
-
-# Send an interactive (markdown) message with @mentions
-bridge.notify(
-    "feishu",
-    webhook_url="YOUR_WEBHOOK_URL",
-    title="Message Title",
-    body="Message Body",
-    msg_type="interactive",
-    at_all=True,  # @所有人
-    at_users=["user1", "user2"]  # @特定用户
-)
 ```
 
-### WeChat Work Example
-```python
-# Send a text message
-bridge.notify(
-    "wecom",
-    webhook_url="YOUR_WEBHOOK_URL",
-    title="Message Title",
-    body="Message Body",
-    msg_type="text",
-    mentioned_list=["user1", "user2"],  # Optional: mention users by ID
-    mentioned_mobile_list=["13800138000"]  # Optional: mention users by mobile
-)
+## 开发指南
 
-# Send a markdown message
-bridge.notify(
-    "wecom",
-    webhook_url="YOUR_WEBHOOK_URL",
-    title="Message Title",
-    body="**Bold Text**\n> Quote\n[Link](https://example.com)",
-    msg_type="markdown"
-)
-
-# Send an image
-bridge.notify(
-    "wecom",
-    webhook_url="YOUR_WEBHOOK_URL",
-    title="Image Message",
-    body="Image Description",
-    msg_type="image",
-    file_path="path/to/image.jpg"  # or use file_url="https://example.com/image.jpg"
-)
-
-# Send a file
-bridge.notify(
-    "wecom",
-    webhook_url="YOUR_WEBHOOK_URL",
-    title="File Message",
-    body="File Description",
-    msg_type="file",
-    file_path="path/to/document.pdf"  # or use file_url="https://example.com/document.pdf"
-)
+1. 克隆仓库：
+```bash
+git clone https://github.com/loonghao/notify-bridge.git
+cd notify-bridge
 ```
 
-## Contributing
+2. 安装依赖：
+```bash
+pip install -e ".[dev]"
+```
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+3. 运行测试：
+```bash
+pytest
+```
 
-## License
+4. 运行代码检查：
+```bash
+nox
+```
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## 贡献
+
+欢迎贡献！请随时提交 Pull Request。
+
+1. Fork 仓库
+2. 创建你的功能分支：`git checkout -b feature/my-feature`
+3. 提交你的更改：`git commit -am 'Add some feature'`
+4. 推送到分支：`git push origin feature/my-feature`
+5. 提交 Pull Request
+
+## 许可证
+
+本项目基于 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。

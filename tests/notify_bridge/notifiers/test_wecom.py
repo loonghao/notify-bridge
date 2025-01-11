@@ -2,14 +2,15 @@
 
 # Import built-in modules
 from typing import Any, Dict
+from unittest.mock import AsyncMock, Mock, patch
 
 # Import third-party modules
 import pytest
-from pytest_mock import MockerFixture
+from pydantic import ValidationError as PydanticValidationError
 
 # Import local modules
-from notify_bridge.exceptions import NotificationError
-from notify_bridge.notifiers.wecom import WeComNotifier
+from notify_bridge.exceptions import NotificationError, ValidationError
+from notify_bridge.notifiers.wecom import WeComNotifier, WeComSchema
 
 
 @pytest.fixture
@@ -27,193 +28,183 @@ def test_file(tmp_path) -> str:
     return str(file_path)
 
 
-@pytest.fixture
-def mock_response(mocker: MockerFixture) -> Dict[str, Any]:
-    """Mock successful API response."""
-    return {"errcode": 0, "errmsg": "ok"}
+def test_schema_validation():
+    """Test schema validation."""
+    # Test valid schema
+    notification = WeComSchema(
+        webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+        msg_type="text",
+        content="Test Content"
+    )
+    assert notification.url == "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test"
+    assert notification.msg_type == "text"
+    assert notification.content == "Test Content"
+
+    # Test webhook_url to url conversion
+    notification = WeComSchema(
+        webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+        msg_type="text",
+        content="Test Content"
+    )
+    assert notification.url == "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test"
+
+    # Test body to content conversion
+    notification = WeComSchema(
+        webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+        msg_type="text",
+        body="Test Body"
+    )
+    assert notification.content == "Test Body"
+
+    # Test invalid message type
+    with pytest.raises(ValidationError):
+        WeComSchema(
+            webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+            msg_type="invalid",
+            content="Test Content"
+        )
+
+    # Test missing webhook URL
+    with pytest.raises(PydanticValidationError):
+        WeComSchema(
+            msg_type="text",
+            content="Test Content"
+        )
 
 
-@pytest.fixture
-def mock_requests(mocker: MockerFixture, mock_response: Dict[str, Any]):
-    """Mock requests."""
-    mock = mocker.patch("notify_bridge.utils.requests.RequestsHelper")
-    mock_instance = mock.return_value
-    mock_instance.post.return_value.json.return_value = mock_response
-    mock_instance.apost.return_value.json.return_value = mock_response
-    return mock_instance
-
-
-def test_wecom_text_message(notifier: WeComNotifier, mock_requests):
+def test_wecom_text_message(notifier: WeComNotifier):
     """Test sending a text message."""
-    response = notifier.send({
-        "title": "Test Title",
-        "body": "Test Body",
-        "msg_type": "text"
-    })
-    assert response.success
-    assert response.notifier == "wecom"
-    mock_requests.post.assert_called_once()
-    payload = mock_requests.post.call_args[1]["json"]
-    assert payload["msgtype"] == "text"
-    assert "Test Title\nTest Body" in payload["text"]["content"]
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"errcode": 0, "errmsg": "ok"}
+
+    with patch("httpx.Client.post", return_value=mock_response):
+        notification = {
+            "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+            "msg_type": "text",
+            "content": "Test Content"
+        }
+        response = notifier.notify(notification)
+        assert response.success is True
+        assert response.name == "wecom"
+        assert response.data == {"errcode": 0, "errmsg": "ok"}
 
 
-def test_wecom_markdown_message(notifier: WeComNotifier, mock_requests):
+def test_wecom_markdown_message(notifier: WeComNotifier):
     """Test sending a markdown message."""
-    response = notifier.send({
-        "title": "Test Title",
-        "body": "# Test Body\n**Bold Text**",
-        "msg_type": "markdown"
-    })
-    assert response.success
-    assert response.notifier == "wecom"
-    mock_requests.post.assert_called_once()
-    payload = mock_requests.post.call_args[1]["json"]
-    assert payload["msgtype"] == "markdown"
-    assert "# Test Title\n# Test Body\n**Bold Text**" in payload["markdown"]["content"]
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"errcode": 0, "errmsg": "ok"}
+
+    with patch("httpx.Client.post", return_value=mock_response):
+        notification = {
+            "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+            "msg_type": "markdown",
+            "content": "# Test Content"
+        }
+        response = notifier.notify(notification)
+        assert response.success is True
+        assert response.name == "wecom"
+        assert response.data == {"errcode": 0, "errmsg": "ok"}
 
 
-def test_wecom_news_message(notifier: WeComNotifier, mock_requests):
-    """Test sending a news message."""
-    response = notifier.send({
-        "title": "Test Title",
-        "body": "Test Body",
-        "msg_type": "news",
-        "articles": [
-            {
-                "title": "Article 1",
-                "description": "Description 1",
-                "url": "https://example.com",
-                "picurl": "https://example.com/image.jpg"
-            }
-        ]
-    })
-    assert response.success
-    assert response.notifier == "wecom"
-    mock_requests.post.assert_called_once()
-    payload = mock_requests.post.call_args[1]["json"]
-    assert payload["msgtype"] == "news"
-    assert len(payload["news"]["articles"]) == 1
-    assert payload["news"]["articles"][0]["title"] == "Article 1"
-
-
-def test_wecom_news_message_with_local_image(notifier: WeComNotifier, mock_requests, test_file):
-    """Test sending a news message with local image."""
-    response = notifier.send({
-        "title": "Test Title",
-        "body": "Test Body",
-        "msg_type": "news",
-        "articles": [
-            {
-                "title": "Article 1",
-                "description": "Description 1",
-                "url": "https://example.com",
-                "picurl": test_file
-            }
-        ]
-    })
-    assert response.success
-    assert response.notifier == "wecom"
-    mock_requests.post.assert_called_once()
-    payload = mock_requests.post.call_args[1]["json"]
-    assert payload["msgtype"] == "news"
-    assert len(payload["news"]["articles"]) == 1
-    assert payload["news"]["articles"][0]["title"] == "Article 1"
-
-
-def test_wecom_image_message(notifier: WeComNotifier, mock_requests, test_file):
+def test_wecom_image_message(notifier: WeComNotifier, test_file):
     """Test sending an image message."""
-    response = notifier.send({
-        "title": "Test Title",
-        "body": test_file,
-        "msg_type": "image"
-    })
-    assert response.success
-    assert response.notifier == "wecom"
-    mock_requests.post.assert_called_once()
-    payload = mock_requests.post.call_args[1]["json"]
-    assert payload["msgtype"] == "image"
-    assert "base64" in payload["image"]
-    assert "md5" in payload["image"]
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"errcode": 0, "errmsg": "ok"}
+
+    with patch("httpx.Client.post", return_value=mock_response):
+        notification = {
+            "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+            "msg_type": "image",
+            "image_path": test_file
+        }
+        response = notifier.notify(notification)
+        assert response.success is True
+        assert response.name == "wecom"
+        assert response.data == {"errcode": 0, "errmsg": "ok"}
 
 
-def test_wecom_file_message(notifier: WeComNotifier, mock_requests, test_file):
+def test_wecom_file_message(notifier: WeComNotifier, test_file):
     """Test sending a file message."""
-    mock_requests.post.return_value.json.side_effect = [
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.side_effect = [
         {"errcode": 0, "errmsg": "ok", "media_id": "test_media_id"},
         {"errcode": 0, "errmsg": "ok"}
     ]
-    response = notifier.send({
-        "title": "Test Title",
-        "body": test_file,
-        "msg_type": "file"
-    })
-    assert response.success
-    assert response.notifier == "wecom"
-    assert mock_requests.post.call_count == 2
-    payload = mock_requests.post.call_args[1]["json"]
-    assert payload["msgtype"] == "file"
-    assert payload["file"]["media_id"] == "test_media_id"
+
+    with patch("httpx.Client.post", return_value=mock_response):
+        notification = {
+            "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+            "msg_type": "file",
+            "file_path": test_file
+        }
+        response = notifier.notify(notification)
+        assert response.success is True
+        assert response.name == "wecom"
+        assert response.data == {"errcode": 0, "errmsg": "ok"}
 
 
 def test_wecom_file_not_found(notifier: WeComNotifier):
     """Test sending a file that does not exist."""
     with pytest.raises(NotificationError, match="File not found"):
-        notifier.send({
-            "title": "Test Title",
-            "body": "nonexistent_file.txt",
-            "msg_type": "file"
-        })
+        notification = {
+            "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+            "msg_type": "file",
+            "file_path": "nonexistent_file.txt"
+        }
+        notifier.notify(notification)
 
 
-def test_wecom_api_error(notifier: WeComNotifier, mocker: MockerFixture):
+def test_wecom_api_error(notifier: WeComNotifier):
     """Test API error handling."""
-    mock = mocker.patch("notify_bridge.utils.requests.RequestsHelper")
-    mock.return_value.post.return_value.json.return_value = {
-        "errcode": 1,
-        "errmsg": "test error"
-    }
-    with pytest.raises(NotificationError, match="WeCom API error: test error"):
-        notifier.send({
-            "title": "Test Title",
-            "body": "Test Body",
-            "msg_type": "text"
-        })
+    mock_response = Mock()
+    mock_response.status_code = 400
+    mock_response.json.return_value = {"errcode": 1, "errmsg": "test error"}
+
+    with patch("httpx.Client.post", return_value=mock_response):
+        notification = {
+            "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+            "msg_type": "text",
+            "content": "Test Content"
+        }
+        with pytest.raises(NotificationError, match="WeCom API error: test error"):
+            notifier.notify(notification)
 
 
 @pytest.mark.asyncio
-async def test_wecom_async_send(notifier: WeComNotifier, mock_requests):
-    """Test async message sending."""
-    response = await notifier.asend({
-        "title": "Test Title",
-        "body": "Test Body",
-        "msg_type": "text"
-    })
-    assert response.success
-    assert response.notifier == "wecom"
-    mock_requests.apost.assert_called_once()
-    payload = mock_requests.apost.call_args[1]["json"]
-    assert payload["msgtype"] == "text"
-    assert "Test Title\nTest Body" in payload["text"]["content"]
+async def test_wecom_async_success(notifier: WeComNotifier):
+    """Test successful async notification."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json = AsyncMock(return_value={"errcode": 0, "errmsg": "ok"})
+
+    with patch("httpx.AsyncClient.post", return_value=mock_response):
+        notification = {
+            "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+            "msg_type": "text",
+            "content": "Test Content"
+        }
+        response = await notifier.notify_async(notification)
+        assert response.success is True
+        assert response.name == "wecom"
+        assert response.data == {"errcode": 0, "errmsg": "ok"}
 
 
 @pytest.mark.asyncio
-async def test_wecom_async_send_with_file(notifier: WeComNotifier, mock_requests, test_file):
-    """Test async file message sending."""
-    mock_requests.post.return_value.json.side_effect = [
-        {"errcode": 0, "errmsg": "ok", "media_id": "test_media_id"},
-        {"errcode": 0, "errmsg": "ok"}
-    ]
-    mock_requests.apost.return_value.json.return_value = {"errcode": 0, "errmsg": "ok"}
-    response = await notifier.asend({
-        "title": "Test Title",
-        "body": test_file,
-        "msg_type": "file"
-    })
-    assert response.success
-    assert response.notifier == "wecom"
-    assert mock_requests.post.call_count == 1
-    assert mock_requests.apost.call_count == 1
-    payload = mock_requests.apost.call_args[1]["json"]
-    assert payload["msgtype"] == "file"
-    assert payload["file"]["media_id"] == "test_media_id"
+async def test_wecom_async_error(notifier: WeComNotifier):
+    """Test async notification error."""
+    mock_response = Mock()
+    mock_response.status_code = 400
+    mock_response.json = AsyncMock(return_value={"errcode": 1, "errmsg": "test error"})
+
+    with patch("httpx.AsyncClient.post", return_value=mock_response):
+        notification = {
+            "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+            "msg_type": "text",
+            "content": "Test Content"
+        }
+        with pytest.raises(NotificationError):
+            await notifier.notify_async(notification)

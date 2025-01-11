@@ -14,9 +14,12 @@ from notify_bridge.exceptions import NotificationError, ValidationError
 
 
 class NotificationSchema(BaseModel):
-    """Base schema for notifications."""
+    """Base notification schema."""
 
-    url: str = Field(description="URL for the notification")
+    url: str
+    title: Optional[str] = None
+    body: Optional[str] = None
+    msg_type: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod

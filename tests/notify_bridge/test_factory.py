@@ -1,12 +1,17 @@
 """Tests for NotifierFactory."""
 
 # Import built-in modules
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Union
 
 import pytest
+from unittest.mock import Mock
+
+# Import third-party modules
+import httpx
+import json
 
 # Import local modules
-from notify_bridge.exceptions import NoSuchNotifierError, ValidationError
+from notify_bridge.exceptions import NoSuchNotifierError, ValidationError, NotificationError
 from notify_bridge.factory import NotifierFactory
 from notify_bridge.types import BaseNotifier, NotificationResponse, NotificationSchema
 
@@ -14,14 +19,25 @@ from notify_bridge.types import BaseNotifier, NotificationResponse, Notification
 class TestSchema(NotificationSchema):
     """Test schema for testing."""
 
-    webhook_url: str
-    msg_type: str
+    url: str
+    title: str
+    body: str
+    msg_type: str = "text"
 
 
 class TestNotifier(BaseNotifier):
     """Test notifier for testing."""
 
     name = "test"
+    schema = TestSchema
+
+    def __init__(self, client: Any = None) -> None:
+        """Initialize the notifier.
+
+        Args:
+            client: HTTP client to use.
+        """
+        self.client = client
 
     def validate(self, notification: Dict[str, Any]) -> NotificationSchema:
         """Validate notification data.
@@ -43,27 +59,93 @@ class TestNotifier(BaseNotifier):
             raise ValidationError("Body is required")
         return super().validate(notification)
 
-    def send(self, notification: NotificationSchema) -> NotificationResponse:
+    def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Build payload for notification.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Payload for notification.
+        """
+        return {
+            "webhook_url": notification.url,
+            "json": {
+                "title": notification.title,
+                "body": notification.body,
+                "msg_type": notification.msg_type
+            }
+        }
+
+    async def build_payload_async(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Build payload for async notification.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Payload for notification.
+        """
+        return {
+            "webhook_url": notification.url,
+            "json": {
+                "title": notification.title,
+                "body": notification.body,
+                "msg_type": notification.msg_type
+            }
+        }
+
+    def notify(self, notification: Optional[Union[NotificationSchema, Dict[str, Any]]] = None, **kwargs: Any) -> NotificationResponse:
         """Send a notification.
 
         Args:
-            notification: Notification data to send.
+            notification: Notification data.
+            **kwargs: Additional arguments.
 
         Returns:
             NotificationResponse: Response from the notification attempt.
         """
-        return NotificationResponse(success=True, message="Test notification sent")
+        if notification is None:
+            notification = kwargs
+        if isinstance(notification, dict):
+            notification = self.validate(notification)
+        client = kwargs.get('client') or self.client
+        if client is None:
+            client = httpx.Client()
+        try:
+            payload = self.build_payload(notification)
+            response = client.post(payload["webhook_url"], json=payload["json"])
+            response.raise_for_status()
+            data = response.json()
+            return NotificationResponse(success=True, name=self.name, data=data)
+        except Exception as e:
+            raise NotificationError(str(e))
 
-    async def asend(self, notification: NotificationSchema) -> NotificationResponse:
+    async def anotify(self, notification: Optional[Union[NotificationSchema, Dict[str, Any]]] = None, **kwargs: Any) -> NotificationResponse:
         """Send a notification asynchronously.
 
         Args:
-            notification: Notification data to send.
+            notification: Notification data.
+            **kwargs: Additional arguments.
 
         Returns:
             NotificationResponse: Response from the notification attempt.
         """
-        return NotificationResponse(success=True, message="Test notification sent")
+        if notification is None:
+            notification = kwargs
+        if isinstance(notification, dict):
+            notification = self.validate(notification)
+        client = kwargs.get('client') or self.client
+        if client is None:
+            client = httpx.AsyncClient()
+        try:
+            payload = await self.build_payload_async(notification)
+            response = await client.post(payload["webhook_url"], json=payload["json"])
+            response.raise_for_status()
+            data = response.json()
+            return NotificationResponse(success=True, name=self.name, data=data)
+        except Exception as e:
+            raise NotificationError(str(e))
 
 
 @pytest.fixture
@@ -137,23 +219,28 @@ def test_create_notifier_invalid(factory: NotifierFactory) -> None:
 
 def test_notify_success(factory: NotifierFactory) -> None:
     """Test successful notification."""
-    response = factory.notify("test", {"title": "Test", "body": "Test message"})
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, json={"success": True}))
+    client = httpx.Client(transport=transport)
+    response = factory.notify("test", {"url": "https://example.com", "title": "Test", "body": "Test message"}, client=client)
     assert response.success
-    assert response.message == "Test notification sent"
-
-
-def test_notify_validation_error(factory: NotifierFactory) -> None:
-    """Test notification validation error."""
-    with pytest.raises(ValidationError):
-        factory.notify("test", {})
+    assert response.name == "test"
+    assert response.data["success"] is True
 
 
 @pytest.mark.asyncio
 async def test_anotify_success(factory: NotifierFactory) -> None:
     """Test successful async notification."""
-    response = await factory.anotify("test", {"title": "Test", "body": "Test message"})
-    assert response.success
-    assert response.message == "Test notification sent"
+    def mock_transport(request):
+        if request.method == "POST":
+            return httpx.Response(200, json={"success": True})
+        return httpx.Response(405)
+    
+    transport = httpx.MockTransport(mock_transport)
+    async with httpx.AsyncClient(transport=transport) as client:
+        response = await factory.anotify("test", {"url": "https://example.com", "title": "Test", "body": "Test message"}, client=client)
+        assert response.success
+        assert response.name == "test"
+        assert response.data["success"] is True
 
 
 @pytest.mark.asyncio

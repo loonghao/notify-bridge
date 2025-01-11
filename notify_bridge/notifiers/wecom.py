@@ -8,17 +8,18 @@ from typing import Any, Dict, List, Optional, Union
 
 # Import third-party modules
 import httpx
-from pydantic import Field, model_validator, ValidationError
+from pydantic import Field, ValidationError, validator, model_validator
 from pydantic.error_wrappers import ValidationError as PydanticValidationError
 
 # Import local modules
 from notify_bridge.exceptions import NotificationError, ValidationError
-from notify_bridge.types import BaseNotifier, NotificationSchema
+from notify_bridge.types import BaseNotifier, NotificationSchema, NotificationResponse
 
 
 class WeComSchema(NotificationSchema):
     """Schema for WeCom notifications."""
 
+    webhook_url: Optional[str] = Field(default=None, description="WeCom webhook URL")
     url: str = Field(..., description="WeCom webhook URL")
     msg_type: str = Field(default="text", description="Message type")
     content: Optional[str] = Field(default=None, description="Message content")
@@ -27,6 +28,43 @@ class WeComSchema(NotificationSchema):
     articles: Optional[List[Dict[str, str]]] = Field(default=None, description="Articles for news message type")
     image_path: Optional[str] = Field(default=None, description="Path to image file")
     file_path: Optional[str] = Field(default=None, description="Path to file")
+    body: Optional[str] = Field(default=None, description="Message body")
+
+    @validator("msg_type")
+    @classmethod
+    def validate_msg_type(cls, v: str) -> str:
+        """Validate message type.
+
+        Args:
+            v: Message type.
+
+        Returns:
+            str: Validated message type.
+
+        Raises:
+            ValidationError: If message type is invalid.
+        """
+        valid_types = ["text", "markdown", "news", "image", "file"]
+        if v not in valid_types:
+            raise ValidationError(f"Invalid message type: {v}")
+        return v
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_fields(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate and transform fields.
+
+        Args:
+            values: Values to validate.
+
+        Returns:
+            Dict[str, Any]: Validated values.
+        """
+        if "webhook_url" in values and "url" not in values:
+            values["url"] = values["webhook_url"]
+        if "body" in values and values.get("body") and not values.get("content"):
+            values["content"] = values["body"]
+        return values
 
     @classmethod
     def validate_data(cls, data: Dict[str, Any]) -> "WeComSchema":
@@ -41,8 +79,6 @@ class WeComSchema(NotificationSchema):
         Raises:
             ValidationError: If validation fails.
         """
-        if "webhook_url" in data and "url" not in data:
-            data["url"] = data["webhook_url"]
         try:
             return cls(**data)
         except PydanticValidationError as e:
@@ -240,3 +276,61 @@ class WeComNotifier(BaseNotifier):
             return url.split("key=")[1]
         except IndexError:
             raise NotificationError("Invalid webhook URL format")
+
+    def notify(self, notification: Union[Dict[str, Any], NotificationSchema]) -> NotificationResponse:
+        """Send a notification.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            NotificationResponse: Notification response.
+
+        Raises:
+            NotificationError: If sending the notification fails.
+        """
+        try:
+            if isinstance(notification, dict):
+                notification = self.schema.validate_data(notification)
+
+            payload = self.build_payload(notification)
+            client = self.client or httpx.Client()
+            response = client.post(**payload)
+            response.raise_for_status()
+            data = response.json()
+            if data.get("errcode") != 0:
+                raise NotificationError(f"WeCom API error: {data.get('errmsg')}")
+            return NotificationResponse(success=True, name=self.name, data=data)
+        except httpx.HTTPError as e:
+            raise NotificationError(f"HTTP error: {str(e)}")
+        except Exception as e:
+            raise NotificationError(str(e))
+
+    async def notify_async(self, notification: Union[Dict[str, Any], NotificationSchema]) -> NotificationResponse:
+        """Send a notification asynchronously.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            NotificationResponse: Notification response.
+
+        Raises:
+            NotificationError: If sending the notification fails.
+        """
+        try:
+            if isinstance(notification, dict):
+                notification = self.schema.validate_data(notification)
+
+            payload = await self.build_payload_async(notification)
+            async with httpx.AsyncClient() as client:
+                response = await client.post(**payload)
+                response.raise_for_status()
+                data = await response.json()
+                if data.get("errcode") != 0:
+                    raise NotificationError(f"WeCom API error: {data.get('errmsg')}")
+                return NotificationResponse(success=True, name=self.name, data=data)
+        except httpx.HTTPError as e:
+            raise NotificationError(f"HTTP error: {str(e)}")
+        except Exception as e:
+            raise NotificationError(str(e))

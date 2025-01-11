@@ -117,49 +117,47 @@ class NotifyBridge:
 
     def notify(
             self,
-            notifier_name: str,
-            notification: Optional[Union[NotificationSchema, Dict[str, Any]]] = None,
+            name: str,
+            notification: Optional[Dict[str, Any]] = None,
             **kwargs: Any,
     ) -> NotificationResponse:
-        """Send a notification synchronously.
+        """Send a notification.
 
         Args:
-            notifier_name: Name of the notifier to use.
-            notification: Notification data.
+            name: The name of the notifier to use.
+            notification: The notification to send.
             **kwargs: Additional arguments to pass to the notifier.
 
         Returns:
-            NotificationResponse: The response from the notification attempt.
-
-        Raises:
-            NoSuchNotifierError: If the specified notifier is not found.
+            The response from the notifier.
         """
+        client = kwargs.pop("client", self._sync_client)
         if notification is None:
             notification = kwargs
-        return self._factory.notify(notifier_name, notification=notification, client=self._sync_client)
+            kwargs = {}
+        return self._factory.notify(name, notification=notification, client=client, **kwargs)
 
     async def anotify(
             self,
-            notifier_name: str,
-            notification: Optional[Union[NotificationSchema, Dict[str, Any]]] = None,
+            name: str,
+            notification: Optional[Dict[str, Any]] = None,
             **kwargs: Any,
     ) -> NotificationResponse:
         """Send a notification asynchronously.
 
         Args:
-            notifier_name: Name of the notifier to use.
-            notification: Notification data.
+            name: The name of the notifier to use.
+            notification: The notification to send.
             **kwargs: Additional arguments to pass to the notifier.
 
         Returns:
-            NotificationResponse: The response from the notification attempt.
-
-        Raises:
-            NoSuchNotifierError: If the specified notifier is not found.
+            The response from the notifier.
         """
+        client = kwargs.pop("client", self._async_client)
         if notification is None:
             notification = kwargs
-        return await self._factory.anotify(notifier_name, notification=notification, client=self._async_client)
+            kwargs = {}
+        return await self._factory.anotify(name, notification=notification, client=client, **kwargs)
 
     def get_registered_notifiers(self) -> List[str]:
         """Get a list of registered notifier names.

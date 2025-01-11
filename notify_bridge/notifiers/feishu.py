@@ -1,4 +1,4 @@
-"""Feishu notifier module."""
+"""Feishu notifier."""
 
 # Import built-in modules
 import logging
@@ -6,24 +6,26 @@ from typing import Any, Dict, Optional, Union
 
 # Import third-party modules
 import httpx
-from pydantic import Field, model_validator, ValidationError as PydanticValidationError
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 # Import local modules
 from notify_bridge.exceptions import NotificationError, ValidationError
-from notify_bridge.types import BaseNotifier, NotificationSchema
+from notify_bridge.types import BaseNotifier, NotificationResponse, NotificationSchema
 
 logger = logging.getLogger(__name__)
 
 
 class FeishuSchema(NotificationSchema):
-    """Schema for Feishu notifications."""
+    """Feishu notification schema."""
 
-    url: str = Field(..., description="Feishu webhook URL")
-    msg_type: str = Field(default="text", description="Message type")
-    content: Optional[str] = Field(default=None, description="Message content")
-    title: Optional[str] = Field(default=None, description="Title for card message")
-    image_path: Optional[str] = Field(default=None, description="Path to image file")
-    file_path: Optional[str] = Field(default=None, description="Path to file")
+    webhook_url: Optional[str] = Field(None, description="Webhook URL")
+    url: str = Field(..., description="URL")
+    msg_type: str = Field("text", description="Message type")
+    content: Optional[str] = Field(None, description="Message content")
+    title: Optional[str] = Field(None, description="Message title")
+    body: Optional[str] = Field(None, description="Message body")
+    image_path: Optional[str] = Field(None, description="Image path")
+    file_path: Optional[str] = Field(None, description="File path")
 
     @model_validator(mode="before")
     @classmethod
@@ -42,48 +44,57 @@ class FeishuSchema(NotificationSchema):
             data["content"] = data["body"]
         return data
 
-    @model_validator(mode="before")
-    @classmethod
-    def validate_data(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate notification data.
+    @field_validator("msg_type")
+    def validate_msg_type(cls, v: str) -> str:
+        """Validate message type.
 
         Args:
-            data: Data to validate.
+            v: Message type value.
 
         Returns:
-            Dict[str, Any]: Validated data.
+            str: Message type value.
 
         Raises:
-            ValidationError: If validation fails.
+            ValidationError: If message type is not supported.
         """
-        # Convert webhook_url to url and body to content
-        if "webhook_url" in data and "url" not in data:
-            data["url"] = data["webhook_url"]
-        if "body" in data and "content" not in data:
-            data["content"] = data["body"]
+        if v not in ["text", "post", "image", "file"]:
+            raise ValidationError("Invalid message type")
+        return v
 
-        # Validate message type
-        msg_type = data.get("msg_type", "text")
-        valid_types = ["text", "post", "image", "file"]
-        if msg_type not in valid_types:
-            raise ValidationError(f"Invalid message type: {msg_type}. Must be one of: {valid_types}")
+    @field_validator("url", mode="before")
+    def validate_url(cls, v: Optional[str], info: ValidationInfo) -> str:
+        """Validate URL.
 
-        # Validate content
-        content = data.get("content")
-        if msg_type in ["text", "post"] and not content:
-            data["content"] = data.get("title", "")
+        Args:
+            v: URL value.
+            info: Validation info.
 
-        # Validate image path
-        image_path = data.get("image_path")
-        if msg_type == "image" and not image_path:
-            raise ValidationError("Image path is required for image messages")
+        Returns:
+            str: URL value.
 
-        # Validate file path
-        file_path = data.get("file_path")
-        if msg_type == "file" and not file_path:
-            raise ValidationError("File path is required for file messages")
+        Raises:
+            ValidationError: If URL is not provided.
+        """
+        if v is None:
+            v = info.data.get("webhook_url")
+        if not v:
+            raise ValidationError("URL is required")
+        return v
 
-        return data
+    @field_validator("content", mode="before")
+    def validate_content(cls, v: Optional[str], info: ValidationInfo) -> Optional[str]:
+        """Validate content.
+
+        Args:
+            v: Content value.
+            info: Validation info.
+
+        Returns:
+            str: Content value.
+        """
+        if v is None:
+            v = info.data.get("body")
+        return v
 
 
 class FeishuNotifier(BaseNotifier):
@@ -236,3 +247,30 @@ class FeishuNotifier(BaseNotifier):
         if isinstance(notification, NotificationSchema):
             notification = notification.model_dump()
         return self._build_payload(notification)
+
+    async def notify_async(self, notification: Union[Dict[str, Any], NotificationSchema]) -> NotificationResponse:
+        """Send notification asynchronously.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            NotificationResponse: Notification response.
+
+        Raises:
+            NotificationError: If notification fails.
+        """
+        try:
+            payload = self.build_payload(notification)
+            async with httpx.AsyncClient() as client:
+                response = await client.post(payload["url"], json=payload["json"])
+                response_data = await response.json()
+                if response.status_code >= 400:
+                    raise NotificationError(f"Failed to send {self.name} notification: {response_data}")
+                return NotificationResponse(
+                    success=True,
+                    name=self.name,
+                    data=response_data
+                )
+        except Exception as e:
+            raise NotificationError(f"Failed to send {self.name} notification: {e}") from e
