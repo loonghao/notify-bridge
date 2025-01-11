@@ -2,15 +2,15 @@
 
 # Import built-in modules
 import logging
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
-# Import third-party modules
-import httpx
+from notify_bridge.components import BaseNotifier
 
 # Import local modules
 from notify_bridge.exceptions import NoSuchNotifierError
-from notify_bridge.types import BaseNotifier, NotificationResponse, NotificationSchema
-from notify_bridge.utils.plugin import get_all_notifiers
+from notify_bridge.plugin import get_all_notifiers
+from notify_bridge.schema import NotificationSchema
+from notify_bridge.utils import HTTPClientConfig
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +19,9 @@ class NotifierFactory:
     """Factory for creating notifiers."""
 
     def __init__(self) -> None:
-        """Initialize the factory."""
-        self._notifier_classes: Dict[str, Type[BaseNotifier]] = {}
+        """Initialize factory."""
+        self._notifiers: Dict[str, Type[BaseNotifier]] = {}
+        self._config: Dict[str, Any] = {}
         self._load_plugins()
 
     def _load_plugins(self) -> None:
@@ -36,7 +37,7 @@ class NotifierFactory:
             name: Name of the notifier.
             notifier_class: Notifier class to register.
         """
-        self._notifier_classes[name] = notifier_class
+        self._notifiers[name] = notifier_class
 
     def unregister_notifier(self, name: str) -> None:
         """Unregister a notifier class.
@@ -44,8 +45,8 @@ class NotifierFactory:
         Args:
             name: Name of the notifier to unregister.
         """
-        if name in self._notifier_classes:
-            del self._notifier_classes[name]
+        if name in self._notifiers:
+            del self._notifiers[name]
 
     def get_notifier_class(self, name: str) -> Optional[Type[BaseNotifier]]:
         """Get a notifier class by name.
@@ -56,13 +57,14 @@ class NotifierFactory:
         Returns:
             Optional[Type[BaseNotifier]]: Notifier class if found, None otherwise.
         """
-        return self._notifier_classes.get(name)
+        return self._notifiers.get(name)
 
-    def create_notifier(self, name: str, **kwargs: Any) -> BaseNotifier:
+    def create_notifier(self, name: str, config: Optional[HTTPClientConfig] = None, **kwargs: Any) -> BaseNotifier:
         """Create a notifier instance.
 
         Args:
             name: Name of the notifier.
+            config: HTTP client configuration.
             **kwargs: Additional arguments to pass to the notifier.
 
         Returns:
@@ -74,60 +76,89 @@ class NotifierFactory:
         notifier_class = self.get_notifier_class(name)
         if notifier_class is None:
             raise NoSuchNotifierError(f"Notifier {name} not found")
-        return notifier_class(**kwargs)
+        return notifier_class(config=config, **kwargs)
 
-    def get_notifier_names(self) -> Dict[str, Type[BaseNotifier]]:
-        """Get a dictionary of registered notifier names and classes.
+    async def create_async_notifier(self, name: str, config: Optional[HTTPClientConfig] = None, **kwargs: Any) -> BaseNotifier:
+        """Create a notifier instance.
+
+        Args:
+            name: Notifier name.
+            config: HTTP client configuration.
+            **kwargs: Additional arguments.
 
         Returns:
-            Dict[str, Type[BaseNotifier]]: Dictionary of notifier names and classes.
+            Notifier instance.
+
+        Raises:
+            NoSuchNotifierError: If notifier not found.
         """
-        return self._notifier_classes.copy()
+        notifier_class = self.get_notifier_class(name)
+        if not notifier_class:
+            raise NoSuchNotifierError(f"Notifier {name} not found")
+        return notifier_class(config=config, **kwargs)
+
+    def get_notifier_names(self) -> List[str]:
+        """Get a list of registered notifier names.
+
+        Returns:
+            List[str]: List of notifier names.
+        """
+        return list(self._notifiers.keys())
 
     def notify(
         self,
         name: str,
         notification: Optional[Union[NotificationSchema, Dict[str, Any]]] = None,
-        client: Optional[httpx.Client] = None,
         **kwargs: Any,
-    ) -> NotificationResponse:
-        """Send a notification synchronously.
+    ) -> Dict[str, Any]:
+        """Send a notification.
 
         Args:
-            name: Name of the notifier to use.
-            notification: Notification data.
-            client: HTTP client to use.
+            name: The name of the notifier to use.
+            notification: The notification to send.
             **kwargs: Additional arguments to pass to the notifier.
 
         Returns:
-            NotificationResponse: The response from the notification attempt.
+            The response from the notifier.
 
         Raises:
             NoSuchNotifierError: If the specified notifier is not found.
+            ValidationError: If notification validation fails.
+            NotificationError: If there is an error sending the notification.
         """
-        notifier = self.create_notifier(name, client=client)
-        return notifier.notify(notification, **kwargs)
+        notifier_class = self.get_notifier_class(name)
+        if notifier_class is None:
+            raise NoSuchNotifierError(f"Notifier {name} not found")
+        notifier = notifier_class()
+        if notification is None:
+            notification = kwargs
+        return notifier.notify(notification)
 
-    async def anotify(
+    async def notify_async(
         self,
         name: str,
         notification: Optional[Union[NotificationSchema, Dict[str, Any]]] = None,
-        client: Optional[httpx.AsyncClient] = None,
         **kwargs: Any,
-    ) -> NotificationResponse:
+    ) -> Dict[str, Any]:
         """Send a notification asynchronously.
 
         Args:
-            name: Name of the notifier to use.
-            notification: Notification data.
-            client: HTTP client to use.
+            name: The name of the notifier to use.
+            notification: The notification to send.
             **kwargs: Additional arguments to pass to the notifier.
 
         Returns:
-            NotificationResponse: The response from the notification attempt.
+            The response from the notifier.
 
         Raises:
             NoSuchNotifierError: If the specified notifier is not found.
+            ValidationError: If notification validation fails.
+            NotificationError: If there is an error sending the notification.
         """
-        notifier = self.create_notifier(name, client=client)
-        return await notifier.anotify(notification, **kwargs)
+        notifier_class = self.get_notifier_class(name)
+        if notifier_class is None:
+            raise NoSuchNotifierError(f"Notifier {name} not found")
+        notifier = notifier_class()
+        if notification is None:
+            notification = kwargs
+        return await notifier.notify_async(notification)

@@ -23,7 +23,7 @@ classifiers = [
 dependencies = [
     "anyio>=4.0.0",
     "httpx>=0.26.0",
-    "pydantic>=2.5.3",
+    "pydantic[email]>=2.5.3",
     "pillow>=10.0.0",
     "aiofiles>=23.2.1",
 ]

@@ -29,11 +29,15 @@ def _assemble_env_paths(*paths):
 def pytest(session: nox.Session) -> None:
     """Run tests with pytest.
 
-    Args:
-        session: The nox session.
+    This function allows passing pytest arguments directly.
+    Usage examples:
+    - Run all tests: nox -s pytest
+    - Run specific test file: nox -s pytest -- tests/notify_bridge/test_core.py
+    - Run with verbose output: nox -s pytest -- -v
+    - Combine options: nox -s pytest -- tests/notify_bridge/test_core.py -v -k "test_specific_function"
     """
     session.install(".")
-    session.install("pytest", "pytest_cov", "pytest_mock", "pytest-asyncio")
+    session.install("pytest", "pytest-cov", "pytest-mock", "pytest-asyncio")
     test_root = THIS_ROOT / "tests"
 
     # Print debug information
@@ -42,9 +46,7 @@ def pytest(session: nox.Session) -> None:
     session.log(f"Package name: {PACKAGE_NAME}")
     session.log(f"Python path: {THIS_ROOT.as_posix()}")
 
-    session.run(
-        "pytest",
-        "-v",  # Verbose output
+    pytest_args = [
         "--tb=short",  # Shorter traceback format
         "--showlocals",  # Show local variables in tracebacks
         "-ra",  # Show extra test summary info
@@ -52,13 +54,20 @@ def pytest(session: nox.Session) -> None:
         "--cov-report=term-missing",  # Show missing lines in terminal
         "--cov-report=xml:coverage.xml",  # Generate XML coverage report
         f"--rootdir={test_root}",
+    ]
+
+    # Add any additional arguments passed to nox
+    pytest_args.extend(session.posargs)
+
+    session.run(
+        "pytest",
+        *pytest_args,
         env={
             "PYTHONPATH": THIS_ROOT.as_posix(),
             "PYTHONDEVMODE": "1",  # Enable development mode
             "PYTHONWARNINGS": "always",  # Show all warnings
         },
     )
-
 
 @nox.session
 def lint(session: nox.Session) -> None:

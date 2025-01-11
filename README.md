@@ -40,7 +40,7 @@ from notify_bridge import NotifyBridge
 bridge = NotifyBridge()
 
 # 同步发送通知
-response = bridge.notify(
+response = bridge.send(
     "feishu",
     webhook_url="YOUR_WEBHOOK_URL",
     title="测试消息",
@@ -49,9 +49,10 @@ response = bridge.notify(
 )
 print(response)
 
+
 # 异步发送通知
 async def send_async():
-    response = await bridge.anotify(
+    response = await bridge.notify_async(
         "feishu",
         webhook_url="YOUR_WEBHOOK_URL",
         title="异步测试消息",
@@ -76,7 +77,7 @@ async def send_async():
 
 ```python
 # 发送文本消息
-bridge.notify(
+bridge.send(
     "feishu",
     webhook_url="YOUR_WEBHOOK_URL",
     content="这是一条文本消息",
@@ -84,7 +85,7 @@ bridge.notify(
 )
 
 # 发送富文本消息
-bridge.notify(
+bridge.send(
     "feishu",
     webhook_url="YOUR_WEBHOOK_URL",
     title="消息标题",
@@ -93,7 +94,7 @@ bridge.notify(
 )
 
 # 发送图片消息
-bridge.notify(
+bridge.send(
     "feishu",
     webhook_url="YOUR_WEBHOOK_URL",
     image_path="path/to/image.jpg",  # 或者使用 image_key
@@ -101,7 +102,7 @@ bridge.notify(
 )
 
 # 发送文件消息
-bridge.notify(
+bridge.send(
     "feishu",
     webhook_url="YOUR_WEBHOOK_URL",
     file_path="path/to/document.pdf",  # 或者使用 file_key
@@ -113,7 +114,7 @@ bridge.notify(
 
 ```python
 # 发送文本消息
-bridge.notify(
+bridge.send(
     "wecom",
     webhook_url="YOUR_WEBHOOK_URL",
     content="这是一条文本消息",
@@ -121,7 +122,7 @@ bridge.notify(
 )
 
 # 发送 Markdown 消息
-bridge.notify(
+bridge.send(
     "wecom",
     webhook_url="YOUR_WEBHOOK_URL",
     content="**粗体文本**\n> 引用\n[链接](https://example.com)",
@@ -129,7 +130,7 @@ bridge.notify(
 )
 
 # 发送图文消息
-bridge.notify(
+bridge.send(
     "wecom",
     webhook_url="YOUR_WEBHOOK_URL",
     title="图文消息标题",
@@ -149,8 +150,9 @@ bridge.notify(
 1. 创建通知器类：
 
 ```python
-from notify_bridge.types import BaseNotifier, NotificationSchema
+from notify_bridge.schema import BaseNotifier, NotificationSchema
 from pydantic import Field
+
 
 class MySchema(NotificationSchema):
     """自定义通知模式。"""
@@ -159,10 +161,11 @@ class MySchema(NotificationSchema):
     content: str = Field(..., description="消息内容")
     msg_type: str = Field("text", description="消息类型")
 
+
 class MyNotifier(BaseNotifier):
     """自定义通知器。"""
     name = "my_notifier"  # 通知器名称
-    schema = MySchema     # 通知器模式
+    schema = MySchema  # 通知器模式
 
     def notify(self, notification: NotificationSchema) -> NotificationResponse:
         """同步发送通知。"""
@@ -188,7 +191,7 @@ my_notifier = "my_package.my_module:MyNotifier"
 from notify_bridge.exceptions import NotificationError, ValidationError
 
 try:
-    response = bridge.notify(
+    response = bridge.send(
         "feishu",
         webhook_url="YOUR_WEBHOOK_URL",
         content="测试消息",
@@ -206,8 +209,8 @@ except NotificationError as e:
 
 ```python
 # .env
-FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
-WECOM_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx
+FEISHU_WEBHOOK_URL = https: // open.feishu.cn / open - apis / bot / v2 / hook / xxx
+WECOM_WEBHOOK_URL = https: // qyapi.weixin.qq.com / cgi - bin / webhook / send?key = xxx
 
 # Python 代码
 import os
@@ -215,7 +218,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-bridge.notify(
+bridge.send(
     "feishu",
     webhook_url=os.getenv("FEISHU_WEBHOOK_URL"),
     content="测试消息",
