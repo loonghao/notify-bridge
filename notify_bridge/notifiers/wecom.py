@@ -1,336 +1,210 @@
-"""WeChat Work (WeCom) notifier."""
+"""WeCom notifier implementation.
+
+This module provides the WeCom (WeChat Work) notification implementation.
+"""
 
 # Import built-in modules
 import base64
-import hashlib
-import os
-from typing import Any, Dict, List, Optional, Union
+import logging
+from pathlib import Path
+from typing import Any, ClassVar, Dict, List, Optional
 
 # Import third-party modules
-import httpx
-from pydantic import Field, ValidationError, validator, model_validator
-from pydantic.error_wrappers import ValidationError as PydanticValidationError
+from pydantic import BaseModel, Field, field_validator
 
 # Import local modules
-from notify_bridge.exceptions import NotificationError, ValidationError
-from notify_bridge.types import BaseNotifier, NotificationSchema, NotificationResponse
+from notify_bridge.components import BaseNotifier, MessageType, NotificationError, NotificationSchema
+
+logger = logging.getLogger(__name__)
+
+
+class Article(BaseModel):
+    """Article schema for WeCom news message."""
+    title: str = Field(..., description="Article title")
+    description: Optional[str] = Field(None, description="Article description")
+    url: str = Field(..., description="Article URL")
+    picurl: Optional[str] = Field(None, description="Article image URL")
+
+    class Config:
+        """Pydantic model configuration."""
+        populate_by_name = True
 
 
 class WeComSchema(NotificationSchema):
     """Schema for WeCom notifications."""
+    webhook_url: str = Field(..., description="Webhook URL", alias="url")
+    content: Optional[str] = Field(None, description="Message content")
+    mentioned_list: Optional[List[str]] = Field(
+        default_factory=list,
+        description="List of mentioned users"
+    )
+    mentioned_mobile_list: Optional[List[str]] = Field(
+        default_factory=list,
+        description="List of mentioned mobile numbers"
+    )
+    image_path: Optional[str] = Field(
+        None,
+        description="Path to image file"
+    )
+    articles: Optional[List[Article]] = Field(
+        default_factory=list,
+        description="Articles for news message type"
+    )
 
-    webhook_url: Optional[str] = Field(default=None, description="WeCom webhook URL")
-    url: str = Field(..., description="WeCom webhook URL")
-    msg_type: str = Field(default="text", description="Message type")
-    content: Optional[str] = Field(default=None, description="Message content")
-    mentioned_list: Optional[List[str]] = Field(default=None, description="List of mentioned users")
-    mentioned_mobile_list: Optional[List[str]] = Field(default=None, description="List of mentioned mobile numbers")
-    articles: Optional[List[Dict[str, str]]] = Field(default=None, description="Articles for news message type")
-    image_path: Optional[str] = Field(default=None, description="Path to image file")
-    file_path: Optional[str] = Field(default=None, description="Path to file")
-    body: Optional[str] = Field(default=None, description="Message body")
-
-    @validator("msg_type")
+    @field_validator("content")
     @classmethod
-    def validate_msg_type(cls, v: str) -> str:
-        """Validate message type.
+    def validate_content(cls, v: Optional[str], info: Dict[str, Any]) -> Optional[str]:
+        """Validate content field.
 
-        Args:
-            v: Message type.
-
-        Returns:
-            str: Validated message type.
-
-        Raises:
-            ValidationError: If message type is invalid.
+        Content is required for text and markdown messages, optional for others.
         """
-        valid_types = ["text", "markdown", "news", "image", "file"]
-        if v not in valid_types:
-            raise ValidationError(f"Invalid message type: {v}")
+        msg_type = info.data.get("msg_type")
+        if msg_type in (MessageType.TEXT, MessageType.MARKDOWN) and not v:
+            raise ValueError("content is required for text and markdown messages")
         return v
 
-    @model_validator(mode="before")
-    @classmethod
-    def validate_fields(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate and transform fields.
-
-        Args:
-            values: Values to validate.
-
-        Returns:
-            Dict[str, Any]: Validated values.
-        """
-        if "webhook_url" in values and "url" not in values:
-            values["url"] = values["webhook_url"]
-        if "body" in values and values.get("body") and not values.get("content"):
-            values["content"] = values["body"]
-        return values
-
-    @classmethod
-    def validate_data(cls, data: Dict[str, Any]) -> "WeComSchema":
-        """Validate notification data.
-
-        Args:
-            data: Data to validate.
-
-        Returns:
-            WeComSchema: Validated notification schema.
-
-        Raises:
-            ValidationError: If validation fails.
-        """
-        try:
-            return cls(**data)
-        except PydanticValidationError as e:
-            raise ValidationError(str(e))
+    class Config:
+        """Pydantic model configuration."""
+        populate_by_name = True
 
 
 class WeComNotifier(BaseNotifier):
     """WeCom notifier implementation."""
 
     name = "wecom"
-    schema = WeComSchema
+    schema_class = WeComSchema
+    supported_types: ClassVar[set[MessageType]] = {
+        MessageType.TEXT,
+        MessageType.MARKDOWN,
+        MessageType.IMAGE,
+        MessageType.NEWS
+    }
 
-    def _build_base_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
-        """Build the base payload for the WeCom API.
+    def _encode_image(self, image_path: str) -> tuple[str, str]:
+        """Encode image to base64.
+
+        Args:
+            image_path: Path to image file.
+
+        Returns:
+            tuple: (Base64 encoded image, MD5 hash)
+
+        Raises:
+            NotificationError: If image file not found or encoding fails.
+        """
+        path = Path(image_path)
+        if not path.exists():
+            raise NotificationError(f"Image file not found: {image_path}")
+
+        try:
+            import hashlib
+            with open(image_path, "rb") as f:
+                content = f.read()
+                md5 = hashlib.md5(content).hexdigest()
+                base64_data = base64.b64encode(content).decode()
+                return base64_data, md5
+        except Exception as e:
+            raise NotificationError(f"Failed to encode image: {str(e)}")
+
+    def _build_text_payload(self, notification: WeComSchema) -> Dict[str, Any]:
+        """Build text message payload.
 
         Args:
             notification: Notification data.
 
         Returns:
-            Dict[str, Any]: Base API payload.
-
-        Raises:
-            NotificationError: If building the payload fails.
+            Dict[str, Any]: Text message payload.
         """
-        return {"url": notification.url}
-
-    def _build_content_payload(self, notification: WeComSchema) -> Dict[str, Any]:
-        """Build the content payload for the WeCom API.
-
-        Args:
-            notification: Notification data.
-
-        Returns:
-            Dict[str, Any]: Content API payload.
-
-        Raises:
-            NotificationError: If building the payload fails.
-        """
-        payload = {"msgtype": notification.msg_type}
-        if notification.msg_type == "text":
-            payload["text"] = {
+        return {
+            "msgtype": "text",
+            "text": {
                 "content": notification.content,
                 "mentioned_list": notification.mentioned_list,
-                "mentioned_mobile_list": notification.mentioned_mobile_list,
+                "mentioned_mobile_list": notification.mentioned_mobile_list
             }
-        elif notification.msg_type == "markdown":
-            payload["markdown"] = {"content": notification.content}
-        elif notification.msg_type == "news":
-            if not notification.articles:
-                raise NotificationError("Articles are required for news message type")
-            payload["news"] = {"articles": notification.articles}
-        elif notification.msg_type == "image":
-            if not notification.image_path or not os.path.exists(notification.image_path):
-                raise NotificationError("Image file not found")
-            with open(notification.image_path, "rb") as f:
-                content = f.read()
-                b64_content = base64.b64encode(content).decode()
-                md5_content = hashlib.md5(content).hexdigest()
-            payload["image"] = {
-                "base64": b64_content,
-                "md5": md5_content,
-            }
-        elif notification.msg_type == "file":
-            if not notification.file_path or not os.path.exists(notification.file_path):
-                raise NotificationError("File not found")
-            with open(notification.file_path, "rb") as f:
-                files = {"file": f}
-                client = self.client or httpx.Client()
-                response = client.post(
-                    "https://qyapi.weixin.qq.com/cgi-bin/webhook/upload_media",
-                    params={"key": self._key(notification.url), "type": "file"},
-                    files=files,
-                )
-                response.raise_for_status()
-                data = response.json()
-                if data.get("errcode") != 0:
-                    raise NotificationError(f"Failed to upload file: {data.get('errmsg')}")
-                payload["file"] = {"media_id": data["media_id"]}
-        else:
-            raise NotificationError(f"Unsupported message type: {notification.msg_type}")
+        }
 
-        return {"json": payload}
-
-    async def _build_content_payload_async(self, notification: WeComSchema) -> Dict[str, Any]:
-        """Build the content payload for the WeCom API asynchronously.
+    def _build_markdown_payload(self, notification: WeComSchema) -> Dict[str, Any]:
+        """Build markdown message payload.
 
         Args:
             notification: Notification data.
 
         Returns:
-            Dict[str, Any]: Content API payload.
-
-        Raises:
-            NotificationError: If building the payload fails.
+            Dict[str, Any]: Markdown message payload.
         """
-        payload = {"msgtype": notification.msg_type}
-        if notification.msg_type == "text":
-            payload["text"] = {
-                "content": notification.content,
+        return {
+            "msgtype": "markdown",
+            "markdown": {
+                "content": notification.content
+            }
+        }
+
+    def _build_image_payload(self, notification: WeComSchema) -> Dict[str, Any]:
+        """Build image message payload.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Image message payload.
+        """
+        if not notification.image_path:
+            raise NotificationError("image_path is required for image message")
+
+        base64_data, md5 = self._encode_image(notification.image_path)
+        return {
+            "msgtype": "image",
+            "image": {
+                "base64": base64_data,
+                "md5": md5
+            }
+        }
+
+    def _build_news_payload(self, notification: WeComSchema) -> Dict[str, Any]:
+        """Build news message payload.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: News message payload.
+        """
+        if not notification.articles:
+            raise NotificationError("articles is required for news message")
+
+        return {
+            "msgtype": "news",
+            "news": {
+                "articles": [
+                    article.model_dump(exclude_none=True)
+                    for article in notification.articles
+                ]
+            },
+            "text": {
                 "mentioned_list": notification.mentioned_list,
-                "mentioned_mobile_list": notification.mentioned_mobile_list,
+                "mentioned_mobile_list": notification.mentioned_mobile_list
             }
-        elif notification.msg_type == "markdown":
-            payload["markdown"] = {"content": notification.content}
-        elif notification.msg_type == "news":
-            if not notification.articles:
-                raise NotificationError("Articles are required for news message type")
-            payload["news"] = {"articles": notification.articles}
-        elif notification.msg_type == "image":
-            if not notification.image_path or not os.path.exists(notification.image_path):
-                raise NotificationError("Image file not found")
-            with open(notification.image_path, "rb") as f:
-                content = f.read()
-                b64_content = base64.b64encode(content).decode()
-                md5_content = hashlib.md5(content).hexdigest()
-            payload["image"] = {
-                "base64": b64_content,
-                "md5": md5_content,
-            }
-        elif notification.msg_type == "file":
-            if not notification.file_path or not os.path.exists(notification.file_path):
-                raise NotificationError("File not found")
-            with open(notification.file_path, "rb") as f:
-                files = {"file": f}
-                async with httpx.AsyncClient() as client:
-                    response = await client.post(
-                        "https://qyapi.weixin.qq.com/cgi-bin/webhook/upload_media",
-                        params={"key": self._key(notification.url), "type": "file"},
-                        files=files,
-                    )
-                    response.raise_for_status()
-                    try:
-                        data = response.json()
-                    except AttributeError:
-                        data = await response.json()
-                    if data.get("errcode") != 0:
-                        raise NotificationError(f"Failed to upload file: {data.get('errmsg')}")
-                    payload["file"] = {"media_id": data["media_id"]}
-        else:
-            raise NotificationError(f"Unsupported message type: {notification.msg_type}")
+        }
 
-        return {"json": payload}
-
-    def build_payload(self, notification: Union[Dict[str, Any], NotificationSchema]) -> Dict[str, Any]:
-        """Build the payload for the WeCom API.
+    def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Build notification payload.
 
         Args:
             notification: Notification data.
 
         Returns:
             Dict[str, Any]: API payload.
-
-        Raises:
-            NotificationError: If building the payload fails.
         """
-        if isinstance(notification, dict):
-            notification = self.validate(notification)
-        base_payload = self._build_base_payload(notification)
-        content_payload = self._build_content_payload(notification)
-        base_payload.update(content_payload)
-        return base_payload
+        if not isinstance(notification, WeComSchema):
+            raise NotificationError("Invalid notification schema type")
 
-    async def build_payload_async(self, notification: Union[Dict[str, Any], NotificationSchema]) -> Dict[str, Any]:
-        """Build the payload for the WeCom API asynchronously.
-
-        Args:
-            notification: Notification data.
-
-        Returns:
-            Dict[str, Any]: API payload.
-
-        Raises:
-            NotificationError: If building the payload fails.
-        """
-        if isinstance(notification, dict):
-            notification = self.validate(notification)
-        base_payload = self._build_base_payload(notification)
-        content_payload = await self._build_content_payload_async(notification)
-        base_payload.update(content_payload)
-        return base_payload
-
-    def _key(self, url: str) -> str:
-        """Get the WeCom webhook key.
-
-        Args:
-            url: Webhook URL.
-
-        Returns:
-            str: Webhook key.
-
-        Raises:
-            NotificationError: If no webhook URL is provided.
-        """
-        try:
-            return url.split("key=")[1]
-        except IndexError:
-            raise NotificationError("Invalid webhook URL format")
-
-    def notify(self, notification: Union[Dict[str, Any], NotificationSchema]) -> NotificationResponse:
-        """Send a notification.
-
-        Args:
-            notification: Notification data.
-
-        Returns:
-            NotificationResponse: Notification response.
-
-        Raises:
-            NotificationError: If sending the notification fails.
-        """
-        try:
-            if isinstance(notification, dict):
-                notification = self.schema.validate_data(notification)
-
-            payload = self.build_payload(notification)
-            client = self.client or httpx.Client()
-            response = client.post(**payload)
-            response.raise_for_status()
-            data = response.json()
-            if data.get("errcode") != 0:
-                raise NotificationError(f"WeCom API error: {data.get('errmsg')}")
-            return NotificationResponse(success=True, name=self.name, data=data)
-        except httpx.HTTPError as e:
-            raise NotificationError(f"HTTP error: {str(e)}")
-        except Exception as e:
-            raise NotificationError(str(e))
-
-    async def notify_async(self, notification: Union[Dict[str, Any], NotificationSchema]) -> NotificationResponse:
-        """Send a notification asynchronously.
-
-        Args:
-            notification: Notification data.
-
-        Returns:
-            NotificationResponse: Notification response.
-
-        Raises:
-            NotificationError: If sending the notification fails.
-        """
-        try:
-            if isinstance(notification, dict):
-                notification = self.schema.validate_data(notification)
-
-            payload = await self.build_payload_async(notification)
-            async with httpx.AsyncClient() as client:
-                response = await client.post(**payload)
-                response.raise_for_status()
-                data = await response.json()
-                if data.get("errcode") != 0:
-                    raise NotificationError(f"WeCom API error: {data.get('errmsg')}")
-                return NotificationResponse(success=True, name=self.name, data=data)
-        except httpx.HTTPError as e:
-            raise NotificationError(f"HTTP error: {str(e)}")
-        except Exception as e:
-            raise NotificationError(str(e))
+        if notification.msg_type == MessageType.TEXT:
+            return self._build_text_payload(notification)
+        elif notification.msg_type == MessageType.MARKDOWN:
+            return self._build_markdown_payload(notification)
+        elif notification.msg_type == MessageType.IMAGE:
+            return self._build_image_payload(notification)
+        elif notification.msg_type == MessageType.NEWS:
+            return self._build_news_payload(notification)
+        raise NotificationError(f"Unsupported message type: {notification.msg_type}")
