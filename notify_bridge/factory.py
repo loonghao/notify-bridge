@@ -2,12 +2,7 @@
 
 # Import built-in modules
 import logging
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Type
-from typing import Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 # Import local modules
 from notify_bridge.components import BaseNotifier
@@ -15,7 +10,6 @@ from notify_bridge.exceptions import NoSuchNotifierError
 from notify_bridge.plugin import get_all_notifiers
 from notify_bridge.schema import NotificationSchema
 from notify_bridge.utils import HTTPClientConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -104,25 +98,20 @@ class NotifierFactory:
             raise NoSuchNotifierError(f"Notifier {name} not found")
         return notifier_class(config=config, **kwargs)
 
-    def get_notifier_names(self) -> List[str]:
-        """Get a list of registered notifier names.
+    def get_notifier_names(self) -> Dict[str, Type[BaseNotifier]]:
+        """Get registered notifier names.
 
         Returns:
-            List[str]: List of notifier names.
+            Dict[str, Type[BaseNotifier]]: Registered notifier names
         """
-        return list(self._notifiers.keys())
+        return self._notifiers.copy()
 
-    def notify(
-        self,
-        name: str,
-        notification: Optional[Union[NotificationSchema, Dict[str, Any]]] = None,
-        **kwargs: Any,
-    ) -> Dict[str, Any]:
-        """Send a notification.
+    def send(self, name: str, data: Optional[Union[NotificationSchema, Dict[str, Any]]] = None, **kwargs: Any) -> Dict[str, Any]:
+        """Send a data.
 
         Args:
             name: The name of the notifier to use.
-            notification: The notification to send.
+            data: The data to send.
             **kwargs: Additional arguments to pass to the notifier.
 
         Returns:
@@ -130,28 +119,24 @@ class NotifierFactory:
 
         Raises:
             NoSuchNotifierError: If the specified notifier is not found.
-            ValidationError: If notification validation fails.
-            NotificationError: If there is an error sending the notification.
+            ValidationError: If data validation fails.
+            NotificationError: If there is an error sending the data.
         """
         notifier_class = self.get_notifier_class(name)
         if notifier_class is None:
             raise NoSuchNotifierError(f"Notifier {name} not found")
         notifier = notifier_class()
-        if notification is None:
-            notification = kwargs
-        return notifier.notify(notification)
+        if data is None:
+            data = kwargs
+        return notifier.send(data)
 
-    async def notify_async(
-        self,
-        name: str,
-        notification: Optional[Union[NotificationSchema, Dict[str, Any]]] = None,
-        **kwargs: Any,
-    ) -> Dict[str, Any]:
-        """Send a notification asynchronously.
+    async def send_async(self, name: str, data: Optional[Union[NotificationSchema, Dict[str, Any]]] = None,
+                         **kwargs: Any) -> Dict[str, Any]:
+        """Send a data asynchronously.
 
         Args:
             name: The name of the notifier to use.
-            notification: The notification to send.
+            data: The data to send.
             **kwargs: Additional arguments to pass to the notifier.
 
         Returns:
@@ -159,13 +144,13 @@ class NotifierFactory:
 
         Raises:
             NoSuchNotifierError: If the specified notifier is not found.
-            ValidationError: If notification validation fails.
-            NotificationError: If there is an error sending the notification.
+            ValidationError: If data validation fails.
+            NotificationError: If there is an error sending the data.
         """
         notifier_class = self.get_notifier_class(name)
         if notifier_class is None:
             raise NoSuchNotifierError(f"Notifier {name} not found")
         notifier = notifier_class()
-        if notification is None:
-            notification = kwargs
-        return await notifier.notify_async(notification)
+        if data is None:
+            data = kwargs
+        return await notifier.send_async(data)

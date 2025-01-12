@@ -5,20 +5,23 @@ This module contains all the base schemas and type definitions used in notify-br
 
 # Import built-in modules
 from enum import Enum
-from typing import Any
-from typing import DefaultDict
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any, DefaultDict, Dict, List, Optional, Union
 
 # Import third-party modules
-from pydantic import BaseModel
-from pydantic import EmailStr
-from pydantic import Field
-from pydantic import SecretStr
-from pydantic import field_validator
-from pydantic import model_validator
+from pydantic import BaseModel, EmailStr, Field, SecretStr, field_validator, model_validator
 
+
+
+class MessageType(str, Enum):
+    """Message types supported by notifiers."""
+
+    TEXT = "text"
+    MARKDOWN = "markdown"
+    NEWS = "news"
+    POST = "post"
+    IMAGE = "image"
+    FILE = "file"
+    INTERACTIVE = "interactive"
 
 class NotifyLevel(str, Enum):
     """Notification level enum."""
@@ -31,40 +34,39 @@ class NotifyLevel(str, Enum):
 
 
 class BaseSchema(BaseModel):
-    """Base schema for all notification schemas."""
+    """Base schema for all data schemas.
 
-    url: Optional[str] = None
-    title: Optional[str] = None
-    content: Optional[str] = None
-    msg_type: Optional[str] = None
-    webhook_url: Optional[str] = None
-    method: str = "POST"
-    headers: Dict[str, Any] = {}
-    payload: Dict[str, Any] = {}
-    timeout: Optional[float] = None
-    verify_ssl: bool = True
+    This class provides the most basic fields that all notifiers might need.
+    Platform-specific fields should be added in platform-specific schemas.
+    """
+
+    content: str = Field(..., description="Message content")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="HTTP headers")
 
     def to_payload(self) -> Dict[str, Any]:
-        """Convert schema to payload."""
-        return {
-            "url": str(self.url) if self.url else None,
-            "title": self.title,
-            "content": self.content,
-            "msg_type": self.msg_type,
-            **self.payload,
-        }
+        """Convert schema to payload.
+
+        This method should be overridden by subclasses to implement
+        platform-specific payload transformations.
+
+        Returns:
+            Dict[str, Any]: Payload for the notification.
+        """
+        return self.model_dump(exclude_none=True)
+
+    class Config:
+        """Pydantic model configuration."""
+        extra = "allow"  # Allow extra fields for platform-specific needs
 
 
 class NotificationSchema(BaseSchema):
     """Base notification schema.
 
-    This is the most basic schema that all notifiers must implement.
+    This schema provides the most basic fields for sending notifications.
     Platform-specific fields should be added in platform-specific schemas.
     """
 
-    url: str = Field(..., description="Notification endpoint URL")
     title: Optional[str] = Field(None, description="Message title")
-    content: Optional[str] = Field(None, description="Message content")
     msg_type: Optional[str] = Field(None, description="Message type")
 
     @model_validator(mode="before")
@@ -82,106 +84,95 @@ class NotificationSchema(BaseSchema):
             data["url"] = data["webhook_url"]
         return data
 
-    @model_validator(mode="before")
-    @classmethod
-    def transform_fields(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform input fields.
-
-        This method should be overridden by subclasses to implement
-        platform-specific field transformations.
-
-        Args:
-            data: Raw input data.
-
-        Returns:
-            Dict[str, Any]: Transformed data.
-        """
-        return data
-
 
 class WebhookSchema(NotificationSchema):
-    """Schema for webhook notifications."""
+    """Schema for webhook notifications.
 
-    webhook_url: str = Field(..., description="Webhook URL")
+    This schema is used for platforms that use webhooks for notifications,
+    such as Slack, Discord, and WeChat Work.
+    """
+
+    url: str = Field(..., description="Webhook URL")
     method: str = Field("POST", description="HTTP method")
-    headers: DefaultDict[str, str] = Field(default_factory=dict, description="HTTP headers")
-    payload: dict[str, Any] = Field(default_factory=dict, description="Webhook payload")
-    timeout: Optional[float] = Field(None, description="Request timeout")
-    verify_ssl: bool = Field(True, description="Verify SSL certificate")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="HTTP headers")
+    timeout: Optional[float] = Field(None, description="Request timeout in seconds")
+    verify_ssl: bool = Field(True, description="Whether to verify SSL certificates")
 
-    @field_validator("method")
-    @classmethod
-    def validate_method(cls, v: str) -> str:
-        """Validate HTTP method.
 
-        Args:
-            v: HTTP method
+class APISchema(NotificationSchema):
+    """Schema for API-based notifications.
 
-        Returns:
-            Validated HTTP method
+    This schema is used for platforms that use REST APIs for notifications,
+    such as GitHub Issues and Telegram.
+    """
 
-        Raises:
-            ValueError: If method is invalid
-
-        """
-        methods = {"GET", "POST", "PUT", "PATCH", "DELETE"}
-        if v.upper() not in methods:
-            raise ValueError(f"Invalid HTTP method: {v}")
-        return v.upper()
-
-    def to_payload(self) -> Dict[str, Any]:
-        """Convert schema to payload.
-
-        Returns:
-            Dict[str, Any]: Webhook payload
-
-        """
-        payload = self.payload.copy()
-        if self.content:
-            payload["content"] = self.content
-        return payload
+    base_url: str = Field(..., description="Base API URL")
+    token: str = Field(..., description="API token or access key")
+    method: str = Field("POST", description="HTTP method")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="HTTP headers")
+    timeout: Optional[float] = Field(None, description="Request timeout in seconds")
+    verify_ssl: bool = Field(True, description="Whether to verify SSL certificates")
 
 
 class EmailSchema(NotificationSchema):
-    """Schema for email notifications."""
+    """Schema for email notifications.
 
-    subject: str = Field(description="Subject of the email")
-    from_email: EmailStr = Field(description="Sender email address")
-    to_emails: List[EmailStr] = Field(description="List of recipient email addresses")
-    cc_emails: List[EmailStr] = Field(default_factory=list, description="List of CC email addresses")
-    bcc_emails: List[EmailStr] = Field(default_factory=list, description="List of BCC email addresses")
-    html_content: Optional[str] = Field(None, description="HTML content of the email")
-    attachments: List[str] = Field(default_factory=list, description="List of attachment paths")
+    This schema is used for sending notifications via email,
+    supporting both SMTP and API-based email services.
+    """
 
-    @model_validator(mode="before")
-    @classmethod
-    def validate_email_lists(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate email lists."""
-        for field in ["to_emails", "cc_emails", "bcc_emails"]:
-            if field in values and not values[field]:
-                values[field] = []
-        return values
-
-    def to_payload(self) -> Dict[str, Any]:
-        """Convert schema to email payload.
-
-        Returns:
-            Dict[str, Any]: Email payload
-
-        """
-        payload = super().to_payload()
-        if self.html_content:
-            payload["html_content"] = self.html_content
-        return payload
+    host: str = Field(..., description="SMTP server host or API endpoint")
+    port: int = Field(..., description="SMTP server port or API port")
+    username: str = Field(..., description="SMTP username or API key")
+    password: str = Field(..., description="SMTP password or API secret")
+    from_email: str = Field(..., description="Sender email address")
+    to_email: Union[str, List[str]] = Field(..., description="Recipient email address(es)")
+    subject: str = Field(..., description="Email subject")
+    is_ssl: bool = Field(True, description="Whether to use SSL/TLS")
+    timeout: Optional[float] = Field(None, description="Connection timeout in seconds")
 
 
 class NotificationResponse(BaseModel):
-    """Response from a notification attempt."""
+    """Response data for notification."""
 
-    success: bool = Field(description="Whether the notification was successful")
-    name: str = Field(description="Name of the notifier")
-    message: Optional[str] = Field(default=None, description="Optional message")
-    data: Optional[Dict[str, Any]] = Field(default=None, description="Optional data")
+    success: bool = Field(description="Success status")
+    name: str = Field(description="Notifier name")
+    message: str = Field(description="Response message")
+    data: Dict[str, Any] = Field(description="Response data")
+
+    def __init__(self, **data: Dict[str, Any]) -> None:
+        """Initialize response data.
+
+        Args:
+            **data: Response data
+        """
+        super().__init__(**data)
+
+    def __eq__(self, other: object) -> bool:
+        """Compare response data.
+
+        Args:
+            other: Other response data
+
+        Returns:
+            bool: True if equal
+        """
+        if not isinstance(other, NotificationResponse):
+            return False
+        return (
+            self.success == other.success
+            and self.name == other.name
+            and self.message == other.message
+            and self.data == other.data
+        )
+
+    def __hash__(self) -> int:
+        """Hash response data.
+
+        Returns:
+            int: Hash value
+        """
+        return hash((self.success, self.name, self.message, str(self.data)))
 
 
 class AuthType(str, Enum):

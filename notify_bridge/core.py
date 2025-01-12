@@ -5,22 +5,18 @@ This module provides the main functionality for sending notifications.
 
 # Import built-in modules
 import logging
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Type
+from typing import Any, Dict, List, Optional, Type
 
 # Import third-party modules
 import httpx
+from pydantic import ValidationError
 
 # Import local modules
 from notify_bridge.components import BaseNotifier
-from notify_bridge.exceptions import ConfigurationError
-from notify_bridge.exceptions import NoSuchNotifierError
+from notify_bridge.exceptions import ConfigurationError, NoSuchNotifierError, NotificationError
 from notify_bridge.factory import NotifierFactory
+from notify_bridge.schema import NotificationResponse
 from notify_bridge.utils import HTTPClientConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +46,7 @@ class NotifyBridge:
         self._factory = NotifierFactory()
         self._sync_client = None
         self._async_client = None
+        self._notifiers = {}
 
     def __enter__(self):
         """Enter context manager."""
@@ -63,6 +60,10 @@ class NotifyBridge:
         if self._sync_client:
             self._sync_client.close()
         self._sync_client = None
+        for notifier in self._notifiers.values():
+            if hasattr(notifier, "close"):
+                notifier.close()
+        self._notifiers.clear()
 
     async def __aenter__(self):
         """Enter async context manager."""
@@ -76,6 +77,10 @@ class NotifyBridge:
         if self._async_client:
             await self._async_client.aclose()
         self._async_client = None
+        for notifier in self._notifiers.values():
+            if hasattr(notifier, "close"):
+                await notifier.close()
+        self._notifiers.clear()
 
     def get_notifier_class(self, name: str) -> Type[BaseNotifier]:
         """Get notifier class by name.
@@ -122,57 +127,53 @@ class NotifyBridge:
         """
         return self._factory.create_notifier(name, config=self._config)
 
-    def register_notifier(self, name: str, notifier_cls: Type[BaseNotifier]) -> None:
+    def register_notifier(self, name: str, notifier_class: Type[BaseNotifier]) -> None:
         """Register a notifier.
 
         Args:
-            name: Name of the notifier
-            notifier_cls: Notifier class to register
-
-        Raises:
-            TypeError: If notifier_cls is not a subclass of BaseNotifier
+            name: Notifier name
+            notifier_class: Notifier class
         """
-        if not isinstance(notifier_cls, type) or not issubclass(notifier_cls, BaseNotifier):
-            raise TypeError(f"Invalid notifier class: {notifier_cls}. " "Expected a subclass of BaseNotifier.")
-        self._factory.register_notifier(name, notifier_cls)
-        logger.debug(f"Registered notifier: {name}")
+        self._notifiers[name] = notifier_class(name=name)
 
-    def get_registered_notifiers(self) -> List[str]:
-        """Get list of registered notifier names.
+    def get_registered_notifiers(self) -> Dict[str, Type[BaseNotifier]]:
+        """Get registered notifiers.
 
         Returns:
-            List of notifier names
+            Dict[str, Type[BaseNotifier]]: Dictionary of registered notifiers.
         """
-        return list(self._factory.get_notifier_names())
+        return self._notifiers
 
     @property
     def notifiers(self) -> List[str]:
-        return self.get_registered_notifiers()
+        return list(self.get_registered_notifiers())
 
     def get_notifier(self, name: str) -> BaseNotifier:
-        """Get a registered notifier by name.
+        """Get or create a notifier instance.
 
         Args:
             name: Name of the notifier
 
         Returns:
-            Registered notifier instance
+            Notifier instance
 
         Raises:
             NoSuchNotifierError: If notifier is not found
         """
-        return self.create_notifier(name)
+        if name not in self._notifiers:
+            self._notifiers[name] = self.create_notifier(name)
+        return self._notifiers[name]
 
-    def send(self, notifier_name: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
-        """Send notification.
+    def send(self, notifier_name: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> NotificationResponse:
+        """Send data synchronously.
 
         Args:
             notifier_name: Name of the notifier
             data: Notification data as dictionary
-            **kwargs: Additional notification data as keyword arguments
+            **kwargs: Additional data data as keyword arguments
 
         Returns:
-            Dict[str, Any]: Response data
+            NotificationResponse: Response data
 
         Raises:
             NoSuchNotifierError: If notifier is not found
@@ -181,21 +182,22 @@ class NotifyBridge:
         if data is None:
             data = {}
         notification_data = {**data, **kwargs}
-        notification = notifier.schema_class(**notification_data)
-        response = notifier.send(notification)
-        response["name"] = notifier_name
-        return response
+        try:
+            response = notifier.send(notification_data)
+            return response if isinstance(response, NotificationResponse) else response
+        except ValidationError as e:
+            raise NotificationError(str(e), notifier_name=notifier_name)
 
-    async def send_async(self, notifier_name: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
-        """Send notification asynchronously.
+    async def send_async(self, notifier_name: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> NotificationResponse:
+        """Send data asynchronously.
 
         Args:
             notifier_name: Name of the notifier
             data: Notification data as dictionary
-            **kwargs: Additional notification data as keyword arguments
+            **kwargs: Additional data data as keyword arguments
 
         Returns:
-            Dict[str, Any]: Response data
+            NotificationResponse: Response data
 
         Raises:
             NoSuchNotifierError: If notifier is not found
@@ -204,7 +206,8 @@ class NotifyBridge:
         if data is None:
             data = {}
         notification_data = {**data, **kwargs}
-        notification = notifier.schema_class(**notification_data)
-        response = await notifier.send_async(notification)
-        response["name"] = notifier_name
-        return response
+        try:
+            response = await notifier.send_async(notification_data)
+            return response if isinstance(response, NotificationResponse) else response
+        except ValidationError as e:
+            raise NotificationError(str(e), notifier_name=notifier_name)
