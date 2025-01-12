@@ -26,12 +26,6 @@ A flexible notification bridge for sending messages to various platforms.
 - 📝 丰富的消息格式（文本、Markdown 等）
 - 🌐 支持多个平台
 
-## 安装
-
-```bash
-pip install notify-bridge
-```
-
 ## 快速开始
 
 ```python
@@ -63,10 +57,18 @@ async def send_async():
     print(response)
 ```
 
+## 安装
+
+```bash
+pip install notify-bridge
+```
+
 ## 支持的平台
 
 - [x] 飞书 (Feishu)
 - [x] 企业微信 (WeCom)
+- [x] GitHub (Issues)
+- [x] Notify (通用通知 API)
 - [ ] 钉钉 (DingTalk)
 - [ ] 电子邮件 (Email)
 - [ ] Slack
@@ -146,6 +148,132 @@ bridge.send(
 )
 ```
 
+### GitHub
+
+```python
+# 创建 Issue
+bridge.send(
+    "github",
+    owner="username",
+    repo="repository",
+    token="YOUR_GITHUB_TOKEN",
+    title="Test Issue",
+    message="Hello from notify-bridge! This is a test issue.",
+    labels=["test", "notify-bridge"],
+    msg_type="text"
+)
+
+# 创建 Markdown Issue
+bridge.send(
+    "github",
+    owner="username",
+    repo="repository",
+    token="YOUR_GITHUB_TOKEN",
+    title="Test Markdown Issue",
+    message="# Hello from notify-bridge!\n\nThis is a **markdown** issue.",
+    labels=["test", "notify-bridge"],
+    msg_type="markdown"
+)
+
+# 异步创建多个 Issues
+async def create_issues():
+    tasks = [
+        bridge.send_async(
+            "github",
+            owner="username",
+            repo="repository",
+            token="YOUR_GITHUB_TOKEN",
+            title=f"Async Test Issue {i}",
+            message=f"This is async test issue {i}",
+            labels=["test", "notify-bridge"],
+            msg_type="text"
+        ) for i in range(3)
+    ]
+    responses = await asyncio.gather(*tasks)
+    return responses
+```
+
+### Notify (通用通知 API)
+
+```python
+# 发送文本消息
+bridge.send(
+    "notify",
+    base_url="YOUR_NOTIFY_BASE_URL",
+    title="Test Message",
+    message="Hello from notify-bridge! This is a test message.",
+    tags=["test", "notify-bridge"],
+    msg_type="text"
+)
+
+# 发送带认证的消息
+bridge.send(
+    "notify",
+    base_url="YOUR_NOTIFY_BASE_URL",
+    token="YOUR_BEARER_TOKEN",  # 可选的认证令牌
+    title="Authenticated Message",
+    message="This message requires authentication.",
+    tags=["secure", "notify-bridge"],
+    msg_type="text"
+)
+
+# 异步发送多条消息
+async def send_messages():
+    tasks = [
+        bridge.send_async(
+            "notify",
+            base_url="YOUR_NOTIFY_BASE_URL",
+            title=f"Async Test Message {i}",
+            message=f"This is async test message {i}",
+            tags=["test", "notify-bridge"],
+            msg_type="text"
+        ) for i in range(3)
+    ]
+    responses = await asyncio.gather(*tasks)
+    return responses
+```
+
+## 环境变量
+
+你可以使用环境变量来存储敏感信息，比如 webhook URL：
+
+```python
+# .env
+FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+WECOM_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx
+
+# Python 代码
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+bridge.send(
+    "feishu",
+    webhook_url=os.getenv("FEISHU_WEBHOOK_URL"),
+    content="测试消息",
+    msg_type="text"
+)
+```
+
+## 错误处理
+
+```python
+from notify_bridge.exceptions import NotificationError, ValidationError
+
+try:
+    response = bridge.send(
+        "feishu",
+        webhook_url="YOUR_WEBHOOK_URL",
+        content="测试消息",
+        msg_type="text"
+    )
+except ValidationError as e:
+    print(f"验证错误：{e}")
+except NotificationError as e:
+    print(f"通知错误：{e}")
+```
+
 ## 创建插件
 
 1. 创建通知器类：
@@ -184,47 +312,6 @@ class MyNotifier(BaseNotifier):
 ```toml
 [project.entry-points."notify_bridge.notifiers"]
 my_notifier = "my_package.my_module:MyNotifier"
-```
-
-## 错误处理
-
-```python
-from notify_bridge.exceptions import NotificationError, ValidationError
-
-try:
-    response = bridge.send(
-        "feishu",
-        webhook_url="YOUR_WEBHOOK_URL",
-        content="测试消息",
-        msg_type="text"
-    )
-except ValidationError as e:
-    print(f"验证错误：{e}")
-except NotificationError as e:
-    print(f"通知错误：{e}")
-```
-
-## 环境变量
-
-你可以使用环境变量来存储敏感信息，比如 webhook URL：
-
-```python
-# .env
-FEISHU_WEBHOOK_URL = https: // open.feishu.cn / open - apis / bot / v2 / hook / xxx
-WECOM_WEBHOOK_URL = https: // qyapi.weixin.qq.com / cgi - bin / webhook / send?key = xxx
-
-# Python 代码
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-bridge.send(
-    "feishu",
-    webhook_url=os.getenv("FEISHU_WEBHOOK_URL"),
-    content="测试消息",
-    msg_type="text"
-)
 ```
 
 ## 开发指南
