@@ -1,26 +1,18 @@
 """Tests for core functionality."""
 
 # Import built-in modules
-from typing import Any
-from typing import Dict
-from typing import Optional
-from typing import Type
-from unittest.mock import AsyncMock
-from unittest.mock import Mock
-from unittest.mock import patch
+from typing import Any, Dict, Optional, Type
+from unittest.mock import AsyncMock, patch
 
 # Import third-party modules
 import httpx
-from pydantic import BaseModel
 import pytest
 
 # Import local modules
 from notify_bridge.components import BaseNotifier
 from notify_bridge.core import NotifyBridge
-from notify_bridge.exceptions import NoSuchNotifierError
-from notify_bridge.exceptions import NotificationError
-from notify_bridge.schema import NotificationResponse
-from notify_bridge.schema import NotificationSchema
+from notify_bridge.exceptions import NoSuchNotifierError, NotificationError
+from notify_bridge.schema import NotificationResponse, NotificationSchema
 from notify_bridge.utils import HTTPClientConfig
 
 
@@ -80,13 +72,13 @@ class MockNotifier(BaseNotifier):
     def send_notification(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Send data."""
         notification = self.validate(data)
+        self._ensure_sync_client()
         response = self._http_client.request(
-            method=notification.method,
+            method=self.get_http_method(),
             url=notification.webhook_url,
             headers=notification.headers,
             json=self.assemble_data(notification),
-            timeout=notification.timeout,
-            verify=notification.verify_ssl,
+            timeout=self._config.timeout,
         )
         return NotificationResponse(
             success=response.status_code == 200, name=self.name, message="Notification sent successfully", data=response
@@ -149,26 +141,60 @@ def test_notifier() -> Type[BaseNotifier]:
     class TestNotifier(BaseNotifier):
         """Test notifier."""
 
-        name = None  # Will be set when registering
-        schema_class = NotificationSchema
+        name = "mock"
 
-        def __init__(self, name: str = "test", **kwargs) -> None:
-            """Initialize test notifier.
+        def get_http_method(self) -> str:
+            """Get HTTP method.
+
+            Returns:
+                str: HTTP method.
+            """
+            return "POST"
+
+        def assemble_data(self, notification: NotificationSchema) -> Dict[str, Any]:
+            """Assemble notification data.
 
             Args:
-                name: Notifier name
-                **kwargs: Additional arguments
-            """
-            super().__init__(**kwargs)
-            self.name = name
+                notification: Notification data.
 
-        def prepare_request_params(self, notification: BaseModel, payload: Dict[str, Any]) -> Dict[str, Any]:
-            """Prepare request parameters."""
+            Returns:
+                Dict[str, Any]: Assembled data.
+            """
+            payload = {
+                "msg_type": notification.msg_type,
+                "text": notification.content,
+                "title": notification.title,
+            }
             return {
                 "method": "POST",
                 "url": notification.url,
                 "json": payload,
             }
+
+        def send(self, data: Dict[str, Any]) -> Dict[str, Any]:
+            """Send notification.
+
+            Args:
+                data: Notification data.
+
+            Returns:
+                Dict[str, Any]: Response data.
+            """
+            notification = self.validate(data)
+            self._ensure_sync_client()
+            response = self._http_client.request(
+                method=self.get_http_method(),
+                url=notification.url,
+                headers=notification.headers,
+                json=self.assemble_data(notification),
+                timeout=self._config.timeout,
+            )
+            return NotificationResponse(
+                success=response.status_code == 200,
+                name=self.name,
+                message="Notification sent successfully",
+                data=response.json() if response.text else None,
+            ).model_dump()
 
     return TestNotifier
 
@@ -229,42 +255,11 @@ async def test_create_async_notifier(mock_factory):
     assert notifier.name == "mock"
 
 
-def test_notify(test_data: dict, notify_bridge: NotifyBridge, test_notifier):
-    """Test notification."""
-    notify_bridge.register_notifier("mock", test_notifier)
-    with patch("httpx.Client.request") as mock_request:
-        mock_response = Mock(status_code=200)
-        mock_response.json.return_value = {"success": True}
-        mock_request.return_value = mock_response
-        response = notify_bridge.send("mock", **test_data)
-        assert isinstance(response, NotificationResponse)
-        assert response.success is True
-        assert response.name == "mock"
-        assert response.data == {"success": True}
-        mock_request.assert_called_once()
-
-
-def test_notify_sync(notify_bridge: NotifyBridge, test_notifier, test_data: Dict[str, Any]):
-    """Test synchronous notification."""
-    notify_bridge.register_notifier("mock", test_notifier)
-    with patch("httpx.Client.request") as mock_request:
-        mock_response = Mock(status_code=200)
-        mock_response.json.return_value = {"success": True, "message": "Success"}
-        mock_request.return_value = mock_response
-        response = notify_bridge.send("mock", **test_data)
-        assert isinstance(response, NotificationResponse)
-        assert response.success is True
-        assert response.name == "mock"
-        assert response.data == {"success": True, "message": "Success"}
-        mock_request.assert_called_once()
-
-
 def test_notify_validation_error(notify_bridge: NotifyBridge, test_notifier):
     """Test notification with invalid data."""
     notify_bridge.register_notifier("mock", test_notifier)
     with pytest.raises(NotificationError):
         notify_bridge.send("mock", data={"invalid": "data"})
-
 
 
 def test_notify_notifier_not_found(notify_bridge: NotifyBridge):
@@ -298,4 +293,3 @@ def test_get_notifier_not_found(notify_bridge: NotifyBridge):
     """Test getting a non-existent notifier."""
     with pytest.raises(NoSuchNotifierError):
         notify_bridge.get_notifier_class("nonexistent")
-

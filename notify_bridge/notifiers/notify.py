@@ -5,21 +5,15 @@ This module provides the Notify data implementation.
 
 # Import built-in modules
 import logging
-from typing import Any
-from typing import ClassVar
-from typing import Dict
-from typing import Optional
+from typing import Any, ClassVar, Dict, Optional
 
 # Import third-party modules
-from pydantic import Field
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 # Import local modules
-from notify_bridge.components import BaseNotifier
-from notify_bridge.components import MessageType
+from notify_bridge.components import BaseNotifier, MessageType
 from notify_bridge.exceptions import NotificationError
 from notify_bridge.schema import APISchema
-
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +22,7 @@ class NotifySchema(APISchema):
     """Schema for Notify notifications."""
 
     base_url: str = Field("https://notify-demo.deno.dev", description="Base URL for notify service")
-    token: Optional[str] = Field(None, description="Bearer token")
+    token: str = Field("", description="Bearer token")
     tags: Optional[list[str]] = Field(None, description="Tags for the data")
     icon: Optional[str] = Field(None, description="Icon URL")
     color: Optional[str] = Field(None, description="Color hex code")
@@ -116,17 +110,11 @@ class NotifyNotifier(BaseNotifier):
             raise NotificationError("content or message is required", notifier_name=self.name)
 
         payload = {
-            "title": data.title or "",
-            "message": text,
-            "type": data.msg_type,
+            "title": data.title,
+            "body": data.content or data.message,
+            "tags": data.tags if data.tags else [],
+            "icon": data.icon,
+            "color": data.color,
         }
-
-        # Add optional fields
-        if data.tags:
-            payload["tags"] = data.tags
-        if data.icon:
-            payload["icon"] = data.icon
-        if data.color:
-            payload["color"] = data.color
 
         return payload

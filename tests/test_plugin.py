@@ -1,21 +1,16 @@
 """Tests for plugin utilities."""
 
 # Import built-in modules
-from typing import Any
-from typing import Dict
-from typing import Type
-from unittest.mock import Mock
-from unittest.mock import patch
+from typing import Any, Dict, Type
+from unittest.mock import Mock, patch
 
 # Import third-party modules
 import pytest
 
 # Import local modules
-from notify_bridge.components import BaseNotifier
-from notify_bridge.components import NotificationResponse
+from notify_bridge.components import BaseNotifier, NotificationResponse
 from notify_bridge.exceptions import PluginError
-from notify_bridge.plugin import get_notifiers_from_entry_points
-from notify_bridge.plugin import load_notifier
+from notify_bridge.plugin import get_notifiers_from_entry_points, load_notifier
 from notify_bridge.schema import NotificationSchema
 
 

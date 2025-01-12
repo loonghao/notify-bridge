@@ -2,3 +2,4 @@ nox
 pytest
 uv
 python-dotenv
+pre-commit

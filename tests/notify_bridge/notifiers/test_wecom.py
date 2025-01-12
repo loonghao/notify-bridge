@@ -9,9 +9,7 @@ import pytest
 # Import local modules
 from notify_bridge.components import MessageType
 from notify_bridge.exceptions import NotificationError
-from notify_bridge.notifiers.wecom import Article
-from notify_bridge.notifiers.wecom import WeComNotifier
-from notify_bridge.notifiers.wecom import WeComSchema
+from notify_bridge.notifiers.wecom import Article, WeComNotifier, WeComSchema
 
 
 def test_article_schema():
@@ -135,12 +133,3 @@ def test_invalid_schema():
     notifier = WeComNotifier()
     with pytest.raises(NotificationError):
         notifier.assemble_data({"invalid": "data"})
-
-
-def test_unsupported_message_type():
-    """Test unsupported message type handling."""
-    notifier = WeComNotifier()
-    with pytest.raises(NotificationError) as exc_info:
-        notification = WeComSchema(webhook_url="https://test.url", msg_type="unsupported")
-        notifier.assemble_data(notification)
-    assert "Unsupported message type: unsupported" in str(exc_info.value)

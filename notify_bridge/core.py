@@ -5,11 +5,7 @@ This module provides the main functionality for sending notifications.
 
 # Import built-in modules
 import logging
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Type
+from typing import Any, Dict, List, Optional, Type
 
 # Import third-party modules
 import httpx
@@ -17,13 +13,10 @@ from pydantic import ValidationError
 
 # Import local modules
 from notify_bridge.components import BaseNotifier
-from notify_bridge.exceptions import ConfigurationError
-from notify_bridge.exceptions import NoSuchNotifierError
-from notify_bridge.exceptions import NotificationError
+from notify_bridge.exceptions import ConfigurationError, NoSuchNotifierError, NotificationError
 from notify_bridge.factory import NotifierFactory
 from notify_bridge.schema import NotificationResponse
 from notify_bridge.utils import HTTPClientConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +83,7 @@ class NotifyBridge:
         self._async_client = None
         for notifier in self._notifiers.values():
             if hasattr(notifier, "close"):
-                await notifier.close()
+                notifier.close()
         self._notifiers.clear()
 
     def get_notifier_class(self, name: str) -> Type[BaseNotifier]:
@@ -147,6 +140,9 @@ class NotifyBridge:
             name: Notifier name
             notifier_class: Notifier class
         """
+        if not isinstance(notifier_class, type) or not issubclass(notifier_class, BaseNotifier):
+            raise ValueError("notifier_class must be a subclass of BaseNotifier")
+        self._factory.register_notifier(name, notifier_class)
         self._notifiers[name] = notifier_class(config=self._config)
 
     def get_registered_notifiers(self) -> Dict[str, Type[BaseNotifier]]:
@@ -185,7 +181,12 @@ class NotifyBridge:
             self._notifiers[name] = notifier_class(config=self._config)
         return self._notifiers[name]
 
-    def send(self, notifier_name: str, data: Optional[Dict[str, Any]] = None, **kwargs) -> NotificationResponse:
+    def send(
+        self,
+        notifier_name: str,
+        data: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> NotificationResponse:
         """Send data synchronously.
 
         Args:
@@ -205,12 +206,15 @@ class NotifyBridge:
         notification_data = {**data, **kwargs}
         try:
             response = notifier.send(notification_data)
-            return response if isinstance(response, NotificationResponse) else response
+            return response
         except ValidationError as e:
             raise NotificationError(str(e), notifier_name=notifier_name)
 
     async def send_async(
-        self, notifier_name: str, data: Optional[Dict[str, Any]] = None, **kwargs
+        self,
+        notifier_name: str,
+        data: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> NotificationResponse:
         """Send data asynchronously.
 
@@ -231,6 +235,16 @@ class NotifyBridge:
         notification_data = {**data, **kwargs}
         try:
             response = await notifier.send_async(notification_data)
-            return response if isinstance(response, NotificationResponse) else response
+            return response
         except ValidationError as e:
             raise NotificationError(str(e), notifier_name=notifier_name)
+
+    def close(self) -> None:
+        """Close the notifier."""
+        for notifier in self._notifiers.values():
+            notifier.close()
+
+    async def close_async(self) -> None:
+        """Close the notifier asynchronously."""
+        for notifier in self._notifiers.values():
+            await notifier.close_async()

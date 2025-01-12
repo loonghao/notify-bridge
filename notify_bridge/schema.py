@@ -5,17 +5,10 @@ This module contains all the base schemas and type definitions used in notify-br
 
 # Import built-in modules
 from enum import Enum
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Union
+from typing import Any, Dict, List, Optional, Union
 
 # Import third-party modules
-from pydantic import BaseModel
-from pydantic import Field
-from pydantic import SecretStr
-from pydantic import model_validator
+from pydantic import AliasChoices, BaseModel, Field, SecretStr, model_validator
 
 
 class MessageType(str, Enum):
@@ -47,41 +40,19 @@ class BaseSchema(BaseModel):
     Platform-specific fields should be added in platform-specific schemas.
     """
 
-    content: str = Field(..., description="Message content")
-    headers: Dict[str, Any] = Field(default_factory=dict, description="HTTP headers")
+    model_config = {"extra": "allow"}
 
     def to_payload(self) -> Dict[str, Any]:
         """Convert schema to payload.
 
-        This method should be overridden by subclasses to implement
-        platform-specific payload transformations.
-
         Returns:
-            Dict[str, Any]: Payload for the notification.
+            Dict[str, Any]: Payload data.
         """
-        payload: Dict[str, Any] = self.model_dump(exclude_none=True)
-        return payload
-
-    class Config:
-        """Pydantic model configuration."""
-
-        extra = "allow"  # Allow extra fields for platform-specific needs
-
-
-class NotificationSchema(BaseSchema):
-    """Base notification schema.
-
-    This schema provides the most basic fields for sending notifications.
-    Platform-specific fields should be added in platform-specific schemas.
-    """
-
-    title: Optional[str] = Field(None, description="Message title")
-    msg_type: Optional[str] = Field(None, description="Message type")
+        return dict(self.model_dump(exclude_none=True))
 
     @model_validator(mode="before")
-    @classmethod
-    def convert_webhook_url(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert webhook_url to url.
+    def validate_base_fields(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate base fields.
 
         Args:
             data: Data to validate.
@@ -89,9 +60,36 @@ class NotificationSchema(BaseSchema):
         Returns:
             Dict[str, Any]: Validated data.
         """
-        if "webhook_url" in data and "url" not in data:
-            data["url"] = data["webhook_url"]
         return data
+
+
+class HTTPSchema(BaseSchema):
+    """Schema for HTTP-based operations.
+
+    This schema provides common fields for HTTP operations like webhooks and APIs.
+    """
+
+    url: str = Field(
+        ...,
+        description="HTTP URL",
+        validation_alias=AliasChoices("url", "webhook_url", "base_url"),
+    )
+    method: str = Field("POST", description="HTTP method")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="HTTP headers")
+    timeout: Optional[float] = Field(None, description="Request timeout in seconds")
+    verify_ssl: bool = Field(True, description="Whether to verify SSL certificates")
+
+
+class NotificationSchema(HTTPSchema):
+    """Schema for notifications.
+
+    This schema provides common fields for all notification types.
+    Platform-specific fields should be added in platform-specific schemas.
+    """
+
+    title: Optional[str] = Field(None, description="Message title")
+    content: Optional[str] = Field(None, description="Message content", alias="message")
+    msg_type: str = Field("text", description="Message type")
 
 
 class WebhookSchema(NotificationSchema):
@@ -101,11 +99,27 @@ class WebhookSchema(NotificationSchema):
     such as Slack, Discord, and WeChat Work.
     """
 
-    url: str = Field(..., description="Webhook URL")
-    method: str = Field("POST", description="HTTP method")
-    headers: Dict[str, Any] = Field(default_factory=dict, description="HTTP headers")
-    timeout: Optional[float] = Field(None, description="Request timeout in seconds")
-    verify_ssl: bool = Field(True, description="Whether to verify SSL certificates")
+    webhook_url: Optional[str] = Field(None, description="Webhook URL")
+    title: Optional[str] = Field(None, description="Message title")
+    content: Optional[str] = Field(None, description="Message content")
+
+    @property
+    def url(self) -> str:
+        """Get URL.
+
+        Returns:
+            str: URL.
+        """
+        return self.webhook_url or ""
+
+    @url.setter
+    def url(self, value: str) -> None:
+        """Set URL.
+
+        Args:
+            value: URL.
+        """
+        self.webhook_url = value
 
 
 class APISchema(NotificationSchema):
@@ -115,12 +129,7 @@ class APISchema(NotificationSchema):
     such as GitHub Issues and Telegram.
     """
 
-    base_url: str = Field(..., description="Base API URL")
     token: str = Field(..., description="API token or access key")
-    method: str = Field("POST", description="HTTP method")
-    headers: Dict[str, Any] = Field(default_factory=dict, description="HTTP headers")
-    timeout: Optional[float] = Field(None, description="Request timeout in seconds")
-    verify_ssl: bool = Field(True, description="Whether to verify SSL certificates")
 
 
 class EmailSchema(NotificationSchema):
@@ -138,7 +147,6 @@ class EmailSchema(NotificationSchema):
     to_email: Union[str, List[str]] = Field(..., description="Recipient email address(es)")
     subject: str = Field(..., description="Email subject")
     is_ssl: bool = Field(True, description="Whether to use SSL/TLS")
-    timeout: Optional[float] = Field(None, description="Connection timeout in seconds")
 
 
 class NotificationResponse(BaseModel):
@@ -187,11 +195,10 @@ class AuthType(str, Enum):
     CUSTOM = "custom"
 
 
-class AuthSchema(BaseModel):
+class AuthSchema(BaseSchema):
     """Base schema for authentication.
 
     This schema is used to define authentication parameters.
-
     """
 
     auth_type: AuthType = Field(default=AuthType.NONE, description="Authentication type")
@@ -211,28 +218,18 @@ class AuthSchema(BaseModel):
             Dict containing authentication headers
         """
         headers = {}
+        if self.auth_type == AuthType.BASIC and self.username and self.password:
+            # Import built-in modules
+            import base64
 
-        if self.auth_type == AuthType.BASIC:
-            if self.username and self.password:
-                # Import built-in modules
-                import base64
-
-                auth_str = f"{self.username}:{self.password.get_secret_value()}"
-                auth_bytes = base64.b64encode(auth_str.encode()).decode()
-                headers["Authorization"] = f"Basic {auth_bytes}"
-
-        elif self.auth_type == AuthType.BEARER:
-            if self.token:
-                headers["Authorization"] = f"Bearer {self.token.get_secret_value()}"
-
-        elif self.auth_type == AuthType.API_KEY:
-            if self.api_key and self.api_key_name:
-                if self.api_key_location == "header":
-                    headers[self.api_key_name] = self.api_key.get_secret_value()
-
+            auth_str = f"{self.username}:{self.password.get_secret_value()}"
+            auth_bytes = auth_str.encode("utf-8")
+            headers["Authorization"] = f"Basic {base64.b64encode(auth_bytes).decode()}"
+        elif self.auth_type == AuthType.BEARER and self.token:
+            headers["Authorization"] = f"Bearer {self.token.get_secret_value()}"
+        elif self.auth_type == AuthType.API_KEY and self.api_key:
+            if self.api_key_location == "header":
+                headers[self.api_key_name or "X-API-Key"] = self.api_key.get_secret_value()
+        elif self.auth_type == AuthType.CUSTOM and self.custom_auth:
+            headers.update(self.custom_auth)
         return headers
-
-    class Config:
-        """Pydantic model configuration."""
-
-        arbitrary_types_allowed = True

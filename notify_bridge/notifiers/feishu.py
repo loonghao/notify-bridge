@@ -7,22 +7,14 @@ This module provides the Feishu (Lark) data implementation.
 import base64
 import logging
 from pathlib import Path
-from typing import Any
-from typing import ClassVar
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
 # Import third-party modules
-from pydantic import BaseModel
-from pydantic import Field
+from pydantic import AliasChoices, BaseModel, Field
 
 # Import local modules
-from notify_bridge.components import BaseNotifier
-from notify_bridge.components import MessageType
-from notify_bridge.components import NotificationError
+from notify_bridge.components import BaseNotifier, MessageType, NotificationError
 from notify_bridge.schema import WebhookSchema
-
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +35,9 @@ class CardHeader(BaseModel):
 class FeishuSchema(WebhookSchema):
     """Schema for Feishu notifications."""
 
-    webhook_url: str = Field(..., description="Webhook URL", alias="url")
+    webhook_url: str = Field(
+        ..., description="Webhook URL", validation_alias=AliasChoices("url", "webhook_url", "base_url")
+    )
     content: Optional[str] = Field(None, description="Message content")
     post_content: Optional[Dict[str, List[List[Dict[str, str]]]]] = Field(None, description="Post message content")
     image_path: Optional[str] = Field(None, description="Path to image file")

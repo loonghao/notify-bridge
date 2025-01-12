@@ -2,20 +2,14 @@
 
 # Import built-in modules
 import logging
-from typing import Any
-from typing import Dict
-from typing import Optional
-from typing import Type
-from typing import Union
+from typing import Any, Dict, Optional, Type, Union
 
 # Import local modules
 from notify_bridge.components import BaseNotifier
-from notify_bridge.exceptions import NoSuchNotifierError
-from notify_bridge.exceptions import NotificationError
+from notify_bridge.exceptions import NoSuchNotifierError, NotificationError
 from notify_bridge.plugin import get_all_notifiers
 from notify_bridge.schema import NotificationSchema
 from notify_bridge.utils import HTTPClientConfig
-
 
 logger = logging.getLogger(__name__)
 
