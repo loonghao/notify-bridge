@@ -17,8 +17,8 @@ from pydantic import model_validator
 # Import local modules
 from notify_bridge.components import BaseNotifier
 from notify_bridge.components import MessageType
-from notify_bridge.schema import APISchema
 from notify_bridge.exceptions import NotificationError
+from notify_bridge.schema import APISchema
 
 
 logger = logging.getLogger(__name__)

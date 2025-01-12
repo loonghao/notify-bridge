@@ -1,14 +1,17 @@
 """Tests for utility functions and classes."""
 
 # Import built-in modules
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
+from unittest.mock import patch
 
 # Import third-party modules
 import pytest
 import pytest_asyncio
 
 # Import local modules
-from notify_bridge.utils import AsyncHTTPClient, HTTPClient, HTTPClientConfig
+from notify_bridge.utils import AsyncHTTPClient
+from notify_bridge.utils import HTTPClient
+from notify_bridge.utils import HTTPClientConfig
 
 
 def test_http_client_config():

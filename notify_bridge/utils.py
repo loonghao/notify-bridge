@@ -5,13 +5,16 @@ This module provides utility functions and classes for HTTP clients and logging.
 
 # Import built-in modules
 from types import TracebackType
-from typing import Any, Dict, Optional, Type
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Type
 
 # Import third-party modules
 import httpx
-from pydantic import BaseModel, Field, field_validator
-
-# Import local modules
+from pydantic import BaseModel
+from pydantic import Field
+from pydantic import field_validator
 
 
 class HTTPClientConfig(BaseModel):
@@ -180,7 +183,6 @@ class HTTPClient:
     def close(self) -> None:
         """Close client."""
         self._client.close()
-
 
 
 class AsyncHTTPClient:

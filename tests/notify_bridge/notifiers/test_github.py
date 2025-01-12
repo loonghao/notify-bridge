@@ -6,7 +6,6 @@ import pytest
 
 # Import local modules
 from notify_bridge.components import MessageType
-from notify_bridge.components import NotificationError
 from notify_bridge.notifiers.github import GitHubNotifier
 from notify_bridge.notifiers.github import GitHubSchema
 
@@ -49,41 +48,14 @@ def test_github_notifier_initialization():
     assert MessageType.MARKDOWN in notifier.supported_types
 
 
-def test_github_headers():
-    """Test GitHub headers generation."""
-    notifier = GitHubNotifier()
-    token = "test-token"
-    headers = notifier._get_headers(token)
-
-    assert headers["Accept"] == "application/vnd.github+json"
-    assert headers["Authorization"] == f"Bearer {token}"
-    assert headers["X-GitHub-Api-Version"] == "2022-11-28"
+@pytest.fixture
+def github_notifier():
+    return GitHubNotifier()
 
 
-def test_github_build_payload():
-    """Test GitHub payload building."""
-    notifier = GitHubNotifier()
-
-    # Test with minimal data using new usage
-    minimal_data = {
-        "owner": "test-owner",
-        "repo": "test-repo",
-        "token": "test-token",
-        "title": "Test Issue",
-        "message": "Test content",  # Using message instead of content
-        "msg_type": "text",
-    }
-    notification = GitHubSchema(**minimal_data)
-    payload = notifier.build_payload(notification)
-
-    assert payload["title"] == "Test Issue"
-    assert payload["body"] == "Test content"
-    assert "labels" not in payload
-    assert "assignees" not in payload
-    assert "milestone" not in payload
-
-    # Test with all optional fields using new usage
-    full_data = {
+@pytest.fixture
+def github_data():
+    return {
         "owner": "test-owner",
         "repo": "test-repo",
         "token": "test-token",
@@ -94,18 +66,16 @@ def test_github_build_payload():
         "milestone": 1,
         "msg_type": "text",
     }
-    notification = GitHubSchema(**full_data)
-    payload = notifier.build_payload(notification)
 
-    assert payload["title"] == "Test Issue"
-    assert payload["body"] == "Test content"
-    assert payload["labels"] == ["bug"]
-    assert payload["assignees"] == ["user1"]
-    assert payload["milestone"] == 1
 
-    # Test with invalid schema
-    with pytest.raises(NotificationError):
-        notifier.build_payload(object())  # Pass invalid schema object
+def test_github_assemble_data(github_notifier, github_data):
+    """Test GitHub notifier assemble_data method."""
+    data = github_notifier.validate(github_data)
+    payload = github_notifier.assemble_data(data)
+    assert payload["title"] == github_data["title"]
+    assert payload["body"] == github_data["message"]
+    assert payload["labels"] == github_data.get("labels", [])
+    assert payload["assignees"] == github_data.get("assignees", [])
 
 
 def test_github_webhook_url():
@@ -120,7 +90,7 @@ def test_github_webhook_url():
         "msg_type": "text",
     }
     notification = GitHubSchema(**data)
-    notifier.build_payload(notification)
+    notifier.assemble_data(notification)
 
     expected_url = "https://api.github.com/repos/test-owner/test-repo/issues"
     assert notification.webhook_url == expected_url

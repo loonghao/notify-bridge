@@ -12,13 +12,12 @@ import pytest
 
 # Import local modules
 from notify_bridge.components import BaseNotifier
-from notify_bridge.components import WebhookNotifier
 from notify_bridge.schema import NotificationResponse
 from notify_bridge.schema import WebhookSchema
 
 
 class TestSchema(WebhookSchema):
-    """Test notification schema."""
+    """Test data schema."""
 
     method: str = "POST"
     webhook_url: str = "https://example.com"
@@ -31,27 +30,27 @@ class TestNotifier(BaseNotifier):
     """Test notifier implementation."""
 
     name = "test"
-    schema_class = TestSchema
+    schema_class = WebhookSchema
 
-    def _send(self, schema: WebhookSchema) -> Dict[str, Any]:
-        """Send notification synchronously."""
-        return NotificationResponse(success=True, name=self.name, message="Notification sent successfully").model_dump()
-
-    async def _send_async(self, schema: WebhookSchema) -> Dict[str, Any]:
-        """Send notification asynchronously."""
-        return NotificationResponse(success=True, name=self.name, message="Notification sent successfully").model_dump()
-
-    def build_payload(self, notification: WebhookSchema) -> Dict[str, Any]:
-        """Build notification payload.
+    def assemble_data(self, data: WebhookSchema) -> Dict[str, Any]:
+        """Assemble data data.
 
         Args:
-            notification: Notification data.
+            data: Notification data.
 
         Returns:
             Dict[str, Any]: API payload.
         """
-        notification = self.validate(notification)
-        return notification.to_payload()
+        data = self.validate(data)
+        return data.to_payload()
+
+    async def _send_async(self, schema: WebhookSchema) -> Dict[str, Any]:
+        """Send data asynchronously."""
+        return NotificationResponse(success=True, name=self.name, message="Notification sent successfully").model_dump()
+
+    def _send(self, schema: WebhookSchema) -> Dict[str, Any]:
+        """Send data synchronously."""
+        return NotificationResponse(success=True, name=self.name, message="Notification sent successfully").model_dump()
 
 
 @pytest.fixture
@@ -78,15 +77,6 @@ def mock_async_http_client(mocker: pytest.FixtureRequest) -> httpx.AsyncClient:
 def base_notifier(mock_http_client: httpx.Client, mock_async_http_client: httpx.AsyncClient) -> BaseNotifier:
     """Create base notifier fixture."""
     notifier = BaseNotifier()
-    notifier._http_client = mock_http_client
-    notifier._async_http_client = mock_async_http_client
-    return notifier
-
-
-@pytest.fixture
-def webhook_notifier(mock_http_client: httpx.Client, mock_async_http_client: httpx.AsyncClient) -> WebhookNotifier:
-    """Create webhook notifier fixture."""
-    notifier = WebhookNotifier()
     notifier._http_client = mock_http_client
     notifier._async_http_client = mock_async_http_client
     return notifier

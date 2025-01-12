@@ -2,8 +2,8 @@
 
 # Import built-in modules
 import asyncio
-import os
 from datetime import datetime
+import os
 from pathlib import Path
 
 # Import local modules
@@ -147,7 +147,8 @@ def setup_test_environment() -> None:
         # Create a simple colored image using PIL
         try:
             # Import third-party modules
-            from PIL import Image, ImageDraw
+            from PIL import Image
+            from PIL import ImageDraw
 
             # Create a 200x200 image with white background
             img = Image.new("RGB", (200, 200), "white")

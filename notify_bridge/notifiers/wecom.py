@@ -24,6 +24,7 @@ from notify_bridge.components import MessageType
 from notify_bridge.components import NotificationError
 from notify_bridge.schema import WebhookSchema
 
+
 logger = logging.getLogger(__name__)
 
 

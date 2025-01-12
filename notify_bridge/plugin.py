@@ -2,16 +2,19 @@
 
 # Import built-in modules
 import importlib
+from importlib import metadata
 import inspect
 import logging
 import os
 import sys
-from importlib import metadata
-from typing import Dict, Optional, Type
+from typing import Dict
+from typing import Optional
+from typing import Type
 
 # Import local modules
 from notify_bridge.components import BaseNotifier
 from notify_bridge.exceptions import PluginError
+
 
 logger = logging.getLogger(__name__)
 
