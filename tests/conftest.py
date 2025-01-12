@@ -55,16 +55,16 @@ class TestNotifier(BaseNotifier):
 
     name = "test"
 
-    def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
-        """Build notification payload.
+    def assemble_data(self, data: NotificationSchema) -> Dict[str, Any]:
+        """Build data payload.
 
         Args:
-            notification: Notification data.
+            data: Notification data.
 
         Returns:
             Dict[str, Any]: API payload.
         """
-        return {"message": notification.content, "title": notification.title}
+        return {"message": data.content, "title": data.title}
 
 
 @pytest.fixture

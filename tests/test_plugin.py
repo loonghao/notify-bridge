@@ -26,8 +26,6 @@ def test_schema():
     class TestSchema(NotificationSchema):
         """Test schema."""
 
-        pass
-
     return TestSchema
 
 
@@ -58,7 +56,7 @@ def test_notifier():
             """Send data asynchronously."""
             return NotificationResponse(success=True, name=self.name)
 
-        def build_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        def assemble_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
             """Build payload."""
             return {}
 
@@ -138,10 +136,10 @@ class TestPlugin(BaseNotifier):
     def __init__(self, schema: Type[NotificationSchema], **kwargs: Any) -> None:
         super().__init__(schema=schema, **kwargs)
 
-    def notify(self, notification: Dict[str, Any], **kwargs: Any) -> NotificationResponse:
+    def notify(self, data: Dict[str, Any], **kwargs: Any) -> NotificationResponse:
         return NotificationResponse(success=True, name=self.name)
 
-    async def anotify(self, notification: Dict[str, Any], **kwargs: Any) -> NotificationResponse:
+    async def anotify(self, data: Dict[str, Any], **kwargs: Any) -> NotificationResponse:
         return NotificationResponse(success=True, name=self.name)
 
     def build_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -181,10 +179,10 @@ class TestPlugin(BaseNotifier):
     def __init__(self, schema: Type[NotificationSchema], **kwargs: Any) -> None:
         super().__init__(schema=schema, **kwargs)
 
-    def notify(self, notification: Dict[str, Any], **kwargs: Any) -> NotificationResponse:
+    def notify(self, data: Dict[str, Any], **kwargs: Any) -> NotificationResponse:
         return NotificationResponse(success=True, name=self.name)
 
-    async def anotify(self, notification: Dict[str, Any], **kwargs: Any) -> NotificationResponse:
+    async def anotify(self, data: Dict[str, Any], **kwargs: Any) -> NotificationResponse:
         return NotificationResponse(success=True, name=self.name)
 
     def build_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -244,10 +242,10 @@ class TestPlugin(BaseNotifier):
     def __init__(self, schema: Type[NotificationSchema], **kwargs: Any) -> None:
         super().__init__(schema=schema, **kwargs)
 
-    def notify(self, notification: Dict[str, Any], **kwargs: Any) -> NotificationResponse:
+    def notify(self, data: Dict[str, Any], **kwargs: Any) -> NotificationResponse:
         return NotificationResponse(success=True, name=self.name)
 
-    async def anotify(self, notification: Dict[str, Any], **kwargs: Any) -> NotificationResponse:
+    async def anotify(self, data: Dict[str, Any], **kwargs: Any) -> NotificationResponse:
         return NotificationResponse(success=True, name=self.name)
 
     def build_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:

@@ -5,11 +5,17 @@ This module contains all the base schemas and type definitions used in notify-br
 
 # Import built-in modules
 from enum import Enum
-from typing import Any, DefaultDict, Dict, List, Optional, Union
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
 
 # Import third-party modules
-from pydantic import BaseModel, EmailStr, Field, SecretStr, field_validator, model_validator
-
+from pydantic import BaseModel
+from pydantic import Field
+from pydantic import SecretStr
+from pydantic import model_validator
 
 
 class MessageType(str, Enum):
@@ -22,6 +28,7 @@ class MessageType(str, Enum):
     IMAGE = "image"
     FILE = "file"
     INTERACTIVE = "interactive"
+
 
 class NotifyLevel(str, Enum):
     """Notification level enum."""
@@ -52,10 +59,12 @@ class BaseSchema(BaseModel):
         Returns:
             Dict[str, Any]: Payload for the notification.
         """
-        return self.model_dump(exclude_none=True)
+        payload: Dict[str, Any] = self.model_dump(exclude_none=True)
+        return payload
 
     class Config:
         """Pydantic model configuration."""
+
         extra = "allow"  # Allow extra fields for platform-specific needs
 
 
@@ -139,14 +148,6 @@ class NotificationResponse(BaseModel):
     name: str = Field(description="Notifier name")
     message: str = Field(description="Response message")
     data: Dict[str, Any] = Field(description="Response data")
-
-    def __init__(self, **data: Dict[str, Any]) -> None:
-        """Initialize response data.
-
-        Args:
-            **data: Response data
-        """
-        super().__init__(**data)
 
     def __eq__(self, other: object) -> bool:
         """Compare response data.

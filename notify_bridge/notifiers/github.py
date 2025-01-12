@@ -5,14 +5,22 @@ This module provides the GitHub Issues data implementation.
 
 # Import built-in modules
 import logging
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any
+from typing import ClassVar
+from typing import Dict
+from typing import List
+from typing import Optional
 
 # Import third-party modules
-from pydantic import Field, model_validator
+from pydantic import Field
+from pydantic import model_validator
 
 # Import local modules
-from notify_bridge.components import BaseNotifier, MessageType, NotificationError
+from notify_bridge.components import BaseNotifier
+from notify_bridge.components import MessageType
+from notify_bridge.components import NotificationError
 from notify_bridge.schema import WebhookSchema
+
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +100,7 @@ class GitHubNotifier(BaseNotifier):
             Dict[str, Any]: API payload
         """
         # Set headers with token
-        data.headers.update({
-            "Authorization": f"token {data.token}",
-            "Accept": "application/vnd.github.v3+json"
-        })
+        data.headers.update({"Authorization": f"token {data.token}", "Accept": "application/vnd.github.v3+json"})
 
         # Get body content
         body = data.body or data.content or data.message

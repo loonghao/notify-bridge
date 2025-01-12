@@ -2,14 +2,20 @@
 
 # Import built-in modules
 import logging
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Type
+from typing import Union
 
 # Import local modules
 from notify_bridge.components import BaseNotifier
 from notify_bridge.exceptions import NoSuchNotifierError
+from notify_bridge.exceptions import NotificationError
 from notify_bridge.plugin import get_all_notifiers
 from notify_bridge.schema import NotificationSchema
 from notify_bridge.utils import HTTPClientConfig
+
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +112,9 @@ class NotifierFactory:
         """
         return self._notifiers.copy()
 
-    def send(self, name: str, data: Optional[Union[NotificationSchema, Dict[str, Any]]] = None, **kwargs: Any) -> Dict[str, Any]:
+    def send(
+        self, name: str, data: Optional[Union[NotificationSchema, Dict[str, Any]]] = None, **kwargs: Any
+    ) -> Dict[str, Any]:
         """Send a data.
 
         Args:
@@ -126,12 +134,15 @@ class NotifierFactory:
         if notifier_class is None:
             raise NoSuchNotifierError(f"Notifier {name} not found")
         notifier = notifier_class()
+        if data is None and not kwargs:
+            raise NotificationError("No data provided")
         if data is None:
             data = kwargs
         return notifier.send(data)
 
-    async def send_async(self, name: str, data: Optional[Union[NotificationSchema, Dict[str, Any]]] = None,
-                         **kwargs: Any) -> Dict[str, Any]:
+    async def send_async(
+        self, name: str, data: Optional[Union[NotificationSchema, Dict[str, Any]]] = None, **kwargs: Any
+    ) -> Dict[str, Any]:
         """Send a data asynchronously.
 
         Args:
@@ -151,6 +162,8 @@ class NotifierFactory:
         if notifier_class is None:
             raise NoSuchNotifierError(f"Notifier {name} not found")
         notifier = notifier_class()
+        if data is None and not kwargs:
+            raise NotificationError("No data provided")
         if data is None:
             data = kwargs
         return await notifier.send_async(data)

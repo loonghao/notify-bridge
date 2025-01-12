@@ -4,26 +4,26 @@ This module contains the base notifier classes and core functionality.
 """
 
 # Import built-in modules
-import asyncio
-import inspect
-import logging
-from abc import ABC, abstractmethod
-from enum import Enum
-from typing import Any, ClassVar, Dict, Optional, Type, Union
+from abc import ABC
+from abc import abstractmethod
+from typing import Any
+from typing import ClassVar
+from typing import Dict
+from typing import Optional
+from typing import Type
+from typing import Union
 
 # Import third-party modules
-import httpx
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
 # Import local modules
-from notify_bridge.schema import NotificationResponse
-from notify_bridge.schema import MessageType
-
-from notify_bridge.schema import NotificationSchema
-
 from notify_bridge.exceptions import NotificationError
-from notify_bridge.utils import AsyncHTTPClient, HTTPClient, HTTPClientConfig
-
+from notify_bridge.schema import MessageType
+from notify_bridge.schema import NotificationResponse
+from notify_bridge.schema import NotificationSchema
+from notify_bridge.utils import AsyncHTTPClient
+from notify_bridge.utils import HTTPClient
+from notify_bridge.utils import HTTPClientConfig
 
 
 class AbstractNotifier(ABC):

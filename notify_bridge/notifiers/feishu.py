@@ -7,14 +7,22 @@ This module provides the Feishu (Lark) data implementation.
 import base64
 import logging
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any
+from typing import ClassVar
+from typing import Dict
+from typing import List
+from typing import Optional
 
 # Import third-party modules
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 
 # Import local modules
-from notify_bridge.components import BaseNotifier, MessageType, NotificationError
+from notify_bridge.components import BaseNotifier
+from notify_bridge.components import MessageType
+from notify_bridge.components import NotificationError
 from notify_bridge.schema import WebhookSchema
+
 
 logger = logging.getLogger(__name__)
 

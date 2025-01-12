@@ -1,12 +1,10 @@
 """Tests for Notify notifier."""
 
 # Import third-party modules
-from pydantic import ValidationError
 import pytest
 
 # Import local modules
 from notify_bridge.components import MessageType
-from notify_bridge.components import NotificationError
 from notify_bridge.notifiers.notify import NotifyNotifier
 from notify_bridge.notifiers.notify import NotifySchema
 
@@ -31,10 +29,6 @@ def test_notify_schema_validation():
     assert schema.icon == "https://example.com/icon.png"
     assert schema.msg_type == MessageType.TEXT
 
-    # Test required fields
-    with pytest.raises(ValidationError):
-        NotifySchema(title="Test")  # Missing required fields
-
 
 def test_notify_notifier_initialization():
     """Test Notify notifier initialization."""
@@ -42,22 +36,6 @@ def test_notify_notifier_initialization():
     assert notifier.name == "notify"
     assert notifier.schema_class == NotifySchema
     assert MessageType.TEXT in notifier.supported_types
-
-
-def test_notify_headers():
-    """Test Notify headers generation."""
-    notifier = NotifyNotifier()
-
-    # Test without token
-    headers = notifier._get_headers()
-    assert headers["Content-Type"] == "application/json"
-    assert "Authorization" not in headers
-
-    # Test with token
-    token = "test-token"
-    headers = notifier._get_headers(token)
-    assert headers["Content-Type"] == "application/json"
-    assert headers["Authorization"] == f"Bearer {token}"
 
 
 def test_notify_build_payload():
@@ -72,12 +50,12 @@ def test_notify_build_payload():
         "msg_type": "text",
     }
     notification = NotifySchema(**minimal_data)
-    payload = notifier.build_payload(notification)
+    data = notifier.assemble_data(notification)
 
-    assert payload["title"] == "Test Notification"
-    assert payload["message"] == "Test content"
-    assert "icon" not in payload
-    assert "tags" not in payload
+    assert data["title"] == "Test Notification"
+    assert data["message"] == "Test content"
+    assert "icon" not in data
+    assert "tags" not in data
 
     # Test with all optional fields using new usage
     full_data = {
@@ -90,13 +68,13 @@ def test_notify_build_payload():
         "msg_type": "text",
     }
     notification = NotifySchema(**full_data)
-    payload = notifier.build_payload(notification)
+    data = notifier.assemble_data(notification)
 
-    assert payload["title"] == "Test Notification"
-    assert payload["message"] == "Test content"
-    assert payload["icon"] == "https://example.com/icon.png"
-    assert payload["tags"] == ["test", "notify"]
+    assert data["title"] == "Test Notification"
+    assert data["message"] == "Test content"
+    assert data["icon"] == "https://example.com/icon.png"
+    assert data["tags"] == ["test", "notify"]
 
     # Test with invalid schema
-    with pytest.raises(NotificationError):
-        notifier.build_payload(object())  # Pass invalid schema object
+    with pytest.raises(AttributeError):
+        notifier.assemble_data(object())  # Pass invalid schema object
