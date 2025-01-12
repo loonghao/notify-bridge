@@ -22,8 +22,7 @@ from pydantic import field_validator
 from notify_bridge.components import BaseNotifier
 from notify_bridge.components import MessageType
 from notify_bridge.components import NotificationError
-from notify_bridge.components import NotificationSchema
-
+from notify_bridge.schema import WebhookSchema
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ class Article(BaseModel):
         populate_by_name = True
 
 
-class WeComSchema(NotificationSchema):
+class WeComSchema(WebhookSchema):
     """Schema for WeCom notifications."""
 
     webhook_url: str = Field(..., description="Webhook URL", alias="base_url")
@@ -189,7 +188,7 @@ class WeComNotifier(BaseNotifier):
             },
         }
 
-    def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
+    def assemble_data(self, notification: WeComSchema) -> Dict[str, Any]:
         """Build notification payload.
 
         Args:

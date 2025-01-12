@@ -2,8 +2,8 @@
 
 # Import built-in modules
 import asyncio
-from datetime import datetime
 import os
+from datetime import datetime
 from pathlib import Path
 
 # Import local modules
@@ -25,7 +25,7 @@ def test_sync(url: str) -> None:
     # Send a text message
     print("\nTesting text message...")
     response = bridge.send(
-        "wecom", base_url=url, message="Hello from notify-bridge!", msg_type="text", mentioned_list=["@all"]
+        "wecom", webhook_url=url, message="Hello from notify-bridge!", msg_type="text", mentioned_list=["@all"]
     )
     print(f"Response: {response}")
 
@@ -33,7 +33,7 @@ def test_sync(url: str) -> None:
     print("\nTesting markdown message...")
     response = bridge.send(
         "wecom",
-        base_url=url,
+        webhook_url=url,
         message="# Hello from notify-bridge!\n\n**Time**: {}\n\nThis is a *markdown* message.".format(
             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ),
@@ -45,7 +45,7 @@ def test_sync(url: str) -> None:
     print("\nTesting image message...")
     image_path = Path(__file__).parent / "assets" / "example.png"
     if image_path.exists():
-        response = bridge.send("wecom", base_url=url, msg_type="image", image_path=str(image_path))
+        response = bridge.send("wecom", webhook_url=url, msg_type="image", image_path=str(image_path))
         print(f"Response: {response}")
     else:
         print(f"[X] Example image not found at {image_path}")
@@ -54,7 +54,7 @@ def test_sync(url: str) -> None:
     print("\nTesting news message...")
     response = bridge.send(
         "wecom",
-        base_url=url,
+        webhook_url=url,
         msg_type="news",
         mentioned_list=["@all"],
         articles=[
@@ -84,7 +84,7 @@ async def test_async(url: str) -> None:
     # Send a text message
     print("\nTesting async text message...")
     response = await bridge.send_async(
-        "wecom", base_url=url, message="Hello from notify-bridge! (async)", msg_type="text", mentioned_list=["@all"]
+        "wecom", webhook_url=url, message="Hello from notify-bridge! (async)", msg_type="text", mentioned_list=["@all"]
     )
     print(f"Response: {response}")
 
@@ -92,7 +92,7 @@ async def test_async(url: str) -> None:
     print("\nTesting async markdown message...")
     response = await bridge.send_async(
         "wecom",
-        base_url=url,
+        webhook_url=url,
         message="# Hello from notify-bridge! (async)\n\n**Time**: {}\n\nThis is an *async markdown* message.".format(
             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ),
@@ -104,7 +104,7 @@ async def test_async(url: str) -> None:
     print("\nTesting async image message...")
     image_path = Path(__file__).parent / "assets" / "example.png"
     if image_path.exists():
-        response = await bridge.send_async("wecom", base_url=url, msg_type="image", image_path=str(image_path))
+        response = await bridge.send_async("wecom", webhook_url=url, msg_type="image", image_path=str(image_path))
         print(f"Response: {response}")
     else:
         print(f"[X] Example image not found at {image_path}")
@@ -113,7 +113,7 @@ async def test_async(url: str) -> None:
     print("\nTesting async news message...")
     response = await bridge.send_async(
         "wecom",
-        base_url=url,
+        webhook_url=url,
         msg_type="news",
         mentioned_list=["@all"],
         articles=[
@@ -147,8 +147,7 @@ def setup_test_environment() -> None:
         # Create a simple colored image using PIL
         try:
             # Import third-party modules
-            from PIL import Image
-            from PIL import ImageDraw
+            from PIL import Image, ImageDraw
 
             # Create a 200x200 image with white background
             img = Image.new("RGB", (200, 200), "white")

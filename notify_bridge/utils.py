@@ -4,22 +4,14 @@ This module provides utility functions and classes for HTTP clients and logging.
 """
 
 # Import built-in modules
-import asyncio
-import time
 from types import TracebackType
-from typing import Any
-from typing import Dict
-from typing import Optional
-from typing import Type
+from typing import Any, Dict, Optional, Type
 
 # Import third-party modules
 import httpx
-from pydantic import BaseModel
-from pydantic import Field
-from pydantic import field_validator
+from pydantic import BaseModel, Field, field_validator
 
 # Import local modules
-from notify_bridge.exceptions import NotificationError
 
 
 class HTTPClientConfig(BaseModel):
@@ -30,7 +22,6 @@ class HTTPClientConfig(BaseModel):
         max_retries: Maximum number of retries
         retry_delay: Delay between retries in seconds
         verify_ssl: Whether to verify SSL certificates
-        proxies: Proxy configuration
         headers: Default headers
     """
 
@@ -38,7 +29,6 @@ class HTTPClientConfig(BaseModel):
     max_retries: int = 3
     retry_delay: float = 1.0
     verify_ssl: bool = True
-    proxies: Optional[Dict[str, str]] = None
     headers: Dict[str, str] = Field(
         default_factory=lambda: {"User-Agent": "notify-bridge/1.0", "Accept": "application/json"}
     )
@@ -100,110 +90,187 @@ class HTTPClientConfig(BaseModel):
 
 
 class HTTPClient:
-    """HTTP client for making requests."""
+    """HTTP client wrapper."""
 
     def __init__(self, config: HTTPClientConfig) -> None:
-        """Initialize HTTP client.
+        """Initialize client.
 
         Args:
             config: HTTP client configuration
         """
         self._config = config
-        self._client: Optional[httpx.Client] = None
+        self._client = httpx.Client(
+            timeout=config.timeout,
+            verify=config.verify_ssl,
+            headers=config.headers,
+        )
 
     def __enter__(self) -> "HTTPClient":
-        """Enter context manager."""
-        self._client = httpx.Client(
-            timeout=self._config.timeout, verify=self._config.verify_ssl, headers=self._config.headers
-        )
+        """Enter context manager.
+
+        Returns:
+            HTTPClient: Self
+        """
         return self
 
     def __exit__(
-        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
     ) -> None:
-        """Exit context manager."""
-        if self._client:
-            self._client.close()
-            self._client = None
-
-    def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        """Make HTTP request.
+        """Exit context manager.
 
         Args:
-            method: HTTP method
-            url: Request URL
-            **kwargs: Additional arguments passed to httpx.request
+            exc_type: Exception type
+            exc_val: Exception value
+            exc_tb: Exception traceback
+        """
+        self.close()
+
+    def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        json: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Send HTTP request.
+
+        Args:
+            method: HTTP method.
+            url: Request URL.
+            params: Query parameters.
+            json: JSON body.
+            headers: Request headers.
+            **kwargs: Additional arguments.
 
         Returns:
-            Response object
-
-        Raises:
-            RequestError: If request fails after max retries
+            httpx.Response: HTTP response.
         """
-        if not self._client:
-            raise NotificationError("HTTP client not initialized")
+        method = method.upper()
+        request_method = getattr(self._client, method.lower(), None)
+        if request_method is None:
+            raise ValueError(f"Unsupported HTTP method: {method}")
+        return request_method(url, params=params, json=json, headers=headers, **kwargs)
 
-        attempt = 0
-        while attempt < self._config.max_retries:
-            try:
-                return self._client.request(method, url, **kwargs)
-            except httpx.RequestError as e:
-                attempt += 1
-                if attempt == self._config.max_retries:
-                    raise NotificationError(f"Request failed after {attempt} attempts: {str(e)}")
-                time.sleep(self._config.retry_delay)
+    def get(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        """Send GET request."""
+        return self._client.get(*args, **kwargs)
+
+    def post(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        """Send POST request."""
+        return self._client.post(*args, **kwargs)
+
+    def put(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        """Send PUT request."""
+        return self._client.put(*args, **kwargs)
+
+    def delete(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        """Send DELETE request."""
+        return self._client.delete(*args, **kwargs)
+
+    def patch(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        """Send PATCH request."""
+        return self._client.patch(*args, **kwargs)
+
+    def close(self) -> None:
+        """Close client."""
+        self._client.close()
+
 
 
 class AsyncHTTPClient:
-    """Async HTTP client for making requests."""
+    """Async HTTP client wrapper."""
 
     def __init__(self, config: HTTPClientConfig) -> None:
-        """Initialize async HTTP client.
+        """Initialize client.
 
         Args:
             config: HTTP client configuration
         """
         self._config = config
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client = httpx.AsyncClient(
+            timeout=config.timeout,
+            verify=config.verify_ssl,
+            headers=config.headers,
+        )
 
     async def __aenter__(self) -> "AsyncHTTPClient":
-        """Enter async context manager."""
-        self._client = httpx.AsyncClient(
-            timeout=self._config.timeout, verify=self._config.verify_ssl, headers=self._config.headers
-        )
+        """Enter async context manager.
+
+        Returns:
+            AsyncHTTPClient: Self
+        """
         return self
 
     async def __aexit__(
-        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
     ) -> None:
-        """Exit async context manager."""
-        if self._client:
-            await self._client.aclose()
-            self._client = None
-
-    async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        """Make async HTTP request.
+        """Exit async context manager.
 
         Args:
-            method: HTTP method
-            url: Request URL
-            **kwargs: Additional arguments passed to httpx.request
+            exc_type: Exception type
+            exc_val: Exception value
+            exc_tb: Exception traceback
+        """
+        await self.close()
+
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        json: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Send HTTP request.
+
+        Args:
+            method: HTTP method.
+            url: Request URL.
+            params: Query parameters.
+            json: JSON body.
+            headers: Request headers.
+            **kwargs: Additional arguments.
 
         Returns:
-            Response object
-
-        Raises:
-            RequestError: If request fails after max retries
+            httpx.Response: HTTP response.
         """
-        if not self._client:
-            raise NotificationError("HTTP client not initialized")
+        method = method.upper()
+        request_method = getattr(self._client, method.lower(), None)
+        if request_method is None:
+            raise ValueError(f"Unsupported HTTP method: {method}")
+        return await request_method(url, params=params, json=json, headers=headers, **kwargs)
 
-        attempt = 0
-        while attempt < self._config.max_retries:
-            try:
-                return await self._client.request(method, url, **kwargs)
-            except httpx.RequestError as e:
-                attempt += 1
-                if attempt == self._config.max_retries:
-                    raise NotificationError(f"Request failed after {attempt} attempts: {str(e)}")
-                await asyncio.sleep(self._config.retry_delay)
+    async def get(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        """Send GET request."""
+        return await self._client.get(*args, **kwargs)
+
+    async def post(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        """Send POST request."""
+        return await self._client.post(*args, **kwargs)
+
+    async def put(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        """Send PUT request."""
+        return await self._client.put(*args, **kwargs)
+
+    async def delete(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        """Send DELETE request."""
+        return await self._client.delete(*args, **kwargs)
+
+    async def patch(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        """Send PATCH request."""
+        return await self._client.patch(*args, **kwargs)
+
+    async def close(self) -> None:
+        """Close client."""
+        await self._client.aclose()

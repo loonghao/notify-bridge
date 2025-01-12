@@ -6,9 +6,7 @@ This module contains all custom exceptions used in notify-bridge.
 # Import built-in modules
 import os
 import traceback
-from typing import Any
-from typing import Dict
-from typing import Optional
+from typing import Any, Dict, Optional
 
 
 class NotifyBridgeError(Exception):
@@ -38,12 +36,12 @@ class ValidationError(NotifyBridgeError):
 
 
 class NotificationError(NotifyBridgeError):
-    """Raised when sending a notification fails.
+    """Raised when sending a data fails.
 
     Args:
         message: Error message
         notifier_name: Name of the notifier that failed
-        response: Response from the notification service
+        response: Response from the data service
         exception: Original exception that caused this error
     """
 
@@ -69,7 +67,7 @@ class NotificationError(NotifyBridgeError):
         Args:
             exception: Original exception
             notifier_name: Name of the notifier
-            response: Response from the notification service
+            response: Response from the data service
 
         Returns:
             NotificationError instance

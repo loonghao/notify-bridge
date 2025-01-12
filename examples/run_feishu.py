@@ -1,4 +1,4 @@
-"""Example script for Feishu notification.
+"""Example script for Feishu data.
 
 This script demonstrates how to use the notify-bridge to send notifications to Feishu.
 """
@@ -221,7 +221,7 @@ def setup_test_environment() -> None:
 
 
 def run_feishu(url: str = None, token: str = None) -> None:
-    """Run all Feishu notification tests.
+    """Run all Feishu data tests.
 
     Args:
         url: Webhook URL, if not provided will try to get from environment

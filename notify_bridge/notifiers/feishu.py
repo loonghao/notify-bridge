@@ -1,28 +1,20 @@
 """Feishu notifier implementation.
 
-This module provides the Feishu (Lark) notification implementation.
+This module provides the Feishu (Lark) data implementation.
 """
 
 # Import built-in modules
 import base64
 import logging
 from pathlib import Path
-from typing import Any
-from typing import ClassVar
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
 # Import third-party modules
-from pydantic import BaseModel
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 # Import local modules
-from notify_bridge.components import BaseNotifier
-from notify_bridge.components import MessageType
-from notify_bridge.components import NotificationError
-from notify_bridge.components import NotificationSchema
-
+from notify_bridge.components import BaseNotifier, MessageType, NotificationError
+from notify_bridge.schema import WebhookSchema
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +32,7 @@ class CardHeader(BaseModel):
     template: str = Field("blue", description="Header template color")
 
 
-class FeishuSchema(NotificationSchema):
+class FeishuSchema(WebhookSchema):
     """Schema for Feishu notifications."""
 
     webhook_url: str = Field(..., description="Webhook URL", alias="url")
@@ -200,22 +192,22 @@ class FeishuNotifier(BaseNotifier):
         # TODO: Implement file upload
         raise NotImplementedError("File upload not implemented yet")
 
-    def _build_interactive_payload(self, notification: FeishuSchema) -> Dict[str, Any]:
-        """Build interactive message payload.
+    def _assemble_interactive_data(self, notification: FeishuSchema) -> Dict[str, Any]:
+        """Assemble interactive message data.
 
         Args:
             notification: Notification data.
 
         Returns:
-            Dict[str, Any]: Interactive message payload.
+            Dict[str, Any]: Interactive message data.
 
         Raises:
             NotificationError: If card_header or card_elements is missing.
         """
         if not notification.card_header:
-            raise NotificationError("card_header is required for interactive messages")
+            raise NotificationError("card_header is required for interactive messages", notifier_name=self.name)
         if not notification.card_elements:
-            raise NotificationError("card_elements is required for interactive messages")
+            raise NotificationError("card_elements is required for interactive messages", notifier_name=self.name)
 
         return {
             "msg_type": "interactive",
@@ -234,26 +226,26 @@ class FeishuNotifier(BaseNotifier):
             },
         }
 
-    def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
-        """Build notification payload.
+    def assemble_data(self, data: FeishuSchema) -> Dict[str, Any]:
+        """Assemble data data.
 
         Args:
-            notification: Notification data.
+            data: Notification data.
 
         Returns:
             Dict[str, Any]: API payload.
-        """
-        if not isinstance(notification, FeishuSchema):
-            raise NotificationError("Invalid notification schema type")
 
-        if notification.msg_type == MessageType.TEXT:
-            return self._build_text_payload(notification)
-        elif notification.msg_type == MessageType.POST:
-            return self._build_post_payload(notification)
-        elif notification.msg_type == MessageType.IMAGE:
-            return self._build_image_payload(notification)
-        elif notification.msg_type == MessageType.FILE:
-            return self._build_file_payload(notification)
-        elif notification.msg_type == MessageType.INTERACTIVE:
-            return self._build_interactive_payload(notification)
-        raise NotificationError(f"Unsupported message type: {notification.msg_type}")
+        Raises:
+            NotificationError: If message type is not supported.
+        """
+        if data.msg_type == MessageType.TEXT:
+            return self._build_text_payload(data)
+        elif data.msg_type == MessageType.POST:
+            return self._build_post_payload(data)
+        elif data.msg_type == MessageType.IMAGE:
+            return self._build_image_payload(data)
+        elif data.msg_type == MessageType.FILE:
+            return self._build_file_payload(data)
+        elif data.msg_type == MessageType.INTERACTIVE:
+            return self._assemble_interactive_data(data)
+        raise NotificationError(f"Unsupported message type: {data.msg_type}", notifier_name=self.name)

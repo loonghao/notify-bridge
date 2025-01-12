@@ -4,77 +4,26 @@ This module contains the base notifier classes and core functionality.
 """
 
 # Import built-in modules
-from abc import ABC
-from abc import abstractmethod
+import asyncio
+import inspect
+import logging
+from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any
-from typing import ClassVar
-from typing import Dict
-from typing import Optional
-from typing import Type
-from typing import Union
+from typing import Any, ClassVar, Dict, Optional, Type, Union
 
 # Import third-party modules
-from pydantic import BaseModel
-from pydantic import Field
-from pydantic import ValidationError
+import httpx
+from pydantic import BaseModel, Field, ValidationError
 
 # Import local modules
+from notify_bridge.schema import NotificationResponse
+from notify_bridge.schema import MessageType
+
+from notify_bridge.schema import NotificationSchema
+
 from notify_bridge.exceptions import NotificationError
-from notify_bridge.utils import AsyncHTTPClient
-from notify_bridge.utils import HTTPClient
-from notify_bridge.utils import HTTPClientConfig
+from notify_bridge.utils import AsyncHTTPClient, HTTPClient, HTTPClientConfig
 
-
-class MessageType(str, Enum):
-    """Message types supported by notifiers."""
-
-    TEXT = "text"
-    MARKDOWN = "markdown"
-    NEWS = "news"
-    POST = "post"
-    IMAGE = "image"
-    FILE = "file"
-    INTERACTIVE = "interactive"
-
-
-class NotificationSchema(BaseModel):
-    """Base schema for all notifications."""
-
-    content: str = Field(..., description="Message content", alias="message")
-    title: Optional[str] = Field(None, description="Message title")
-    msg_type: MessageType = Field(MessageType.TEXT, description="Message type")
-    webhook_url: Optional[str] = Field(None, description="Webhook URL", alias="base_url")
-    headers: Dict[str, str] = Field(
-        default_factory=lambda: {"Content-Type": "application/json"}, description="HTTP headers"
-    )
-    labels: Optional[list[str]] = Field(None, description="Labels or tags", alias="tags")
-    token: Optional[str] = Field(None, description="Authentication token")
-    owner: Optional[str] = Field(None, description="Repository owner")
-    repo: Optional[str] = Field(None, description="Repository name")
-
-    def to_payload(self) -> Dict[str, Any]:
-        """Convert to API payload.
-
-        Returns:
-            Dict[str, Any]: API payload.
-        """
-        return self.model_dump(exclude_none=True)
-
-    class Config:
-        """Pydantic model configuration."""
-
-        extra = "allow"
-        populate_by_name = True
-
-
-class NotificationResponse(BaseModel):
-    """Response schema for notifications."""
-
-    success: bool = Field(..., description="Whether the notification was successful")
-    name: str = Field(..., description="Name of the notifier")
-    message: str = Field(..., description="Response message")
-    data: Optional[Dict[str, Any]] = Field(None, description="Additional response data")
 
 
 class AbstractNotifier(ABC):
@@ -83,6 +32,132 @@ class AbstractNotifier(ABC):
     name: str = ""
     schema_class: Type[NotificationSchema] = NotificationSchema
     supported_types: ClassVar[set[MessageType]] = {MessageType.TEXT}
+    http_method: str = "POST"
+
+    def get_http_method(self) -> str:
+        """Get HTTP method for the request.
+
+        Returns:
+            str: HTTP method (e.g., "POST", "GET", "PUT", etc.)
+        """
+        return self.http_method
+
+    def prepare_request_params(self, notification: NotificationSchema, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepare request parameters based on HTTP method.
+
+        Args:
+            notification: Notification data.
+            payload: Prepared payload data.
+
+        Returns:
+            Dict[str, Any]: Request parameters.
+        """
+        params = {
+            "method": self.get_http_method(),
+            "url": notification.webhook_url,
+            "headers": notification.headers,
+        }
+
+        # 根据不同的 HTTP 方法设置不同的参数
+        method = self.get_http_method().upper()
+        if method in ["POST", "PUT", "PATCH"]:
+            params["json"] = payload
+        elif method == "GET":
+            params["params"] = payload
+        else:
+            # 对于其他方法，如 DELETE，可能不需要 payload
+            if payload:
+                params["json"] = payload
+
+        return params
+
+    @abstractmethod
+    def __init__(self, config: Optional[HTTPClientConfig] = None) -> None:
+        """Initialize notifier.
+
+        Args:
+            config: HTTP client configuration.
+        """
+        pass
+
+    @abstractmethod
+    def assemble_data(self, data: NotificationSchema) -> Dict[str, Any]:
+        """Assemble data data.
+
+        Args:
+            data: Notification data.
+
+        Returns:
+            Dict[str, Any]: API payload.
+
+        Raises:
+            NotificationError: If data is not valid.
+        """
+        pass
+
+    @abstractmethod
+    def _prepare_data(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Prepare data data.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: API payload.
+
+        Raises:
+            NotificationError: If data preparation fails.
+        """
+        pass
+
+    @abstractmethod
+    async def send_async(self, notification: NotificationSchema) -> NotificationResponse:
+        """Send data asynchronously.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            NotificationResponse: API response.
+
+        Raises:
+            NotificationError: If data fails.
+        """
+        pass
+
+    @abstractmethod
+    def send(self, notification: NotificationSchema) -> NotificationResponse:
+        """Send data synchronously.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            NotificationResponse: API response.
+
+        Raises:
+            NotificationError: If data fails.
+        """
+        pass
+
+    @abstractmethod
+    def validate(self, data: Union[Dict[str, Any], NotificationSchema]) -> NotificationSchema:
+        """Validate data data.
+
+        Args:
+            data: Notification data.
+
+        Returns:
+            NotificationSchema: Validated data schema.
+
+        Raises:
+            NotificationError: If validation fails.
+        """
+        pass
+
+
+class BaseNotifier(AbstractNotifier):
+    """Base implementation of notifier with common functionality."""
 
     def __init__(self, config: Optional[HTTPClientConfig] = None) -> None:
         """Initialize notifier.
@@ -91,57 +166,74 @@ class AbstractNotifier(ABC):
             config: HTTP client configuration.
         """
         self._config = config or HTTPClientConfig()
-        self._http_client = HTTPClient(self._config)
-        self._async_http_client = AsyncHTTPClient(self._config)
+        self._http_client = None
+        self._async_http_client = None
 
-    def _validate_message_type(self, msg_type: Union[MessageType, str]) -> None:
-        """Validate message type.
+    def _ensure_sync_client(self) -> None:
+        """Ensure sync client is initialized."""
+        if self._http_client is None:
+            self._http_client = HTTPClient(self._config)
+
+    async def _ensure_async_client(self) -> None:
+        """Ensure async client is initialized."""
+        if self._async_http_client is None:
+            self._async_http_client = AsyncHTTPClient(self._config)
+
+    def close(self) -> None:
+        """Close sync client."""
+        if self._http_client:
+            self._http_client.close()
+            self._http_client = None
+
+    async def close_async(self) -> None:
+        """Close async client."""
+        if self._async_http_client:
+            await self._async_http_client.close()
+            self._async_http_client = None
+
+    def validate(self, data: Union[Dict[str, Any], NotificationSchema]) -> NotificationSchema:
+        """Validate data data.
 
         Args:
-            msg_type: Message type to validate.
-
-        Raises:
-            NotificationError: If message type is not supported.
-        """
-        if isinstance(msg_type, str):
-            try:
-                msg_type = MessageType(msg_type)
-            except ValueError:
-                raise NotificationError(f"Invalid message type: {msg_type}")
-
-        if msg_type not in self.supported_types:
-            raise NotificationError(
-                f"Unsupported message type: {msg_type}. "
-                f"Supported types: {', '.join(t.value for t in self.supported_types)}"
-            )
-
-    def validate(self, notification: Union[Dict[str, Any], NotificationSchema]) -> NotificationSchema:
-        """Validate notification data.
-
-        Args:
-            notification: Notification data.
+            data: Notification data.
 
         Returns:
-            NotificationSchema: Validated notification schema.
+            NotificationSchema: Validated data schema.
 
         Raises:
             NotificationError: If validation fails.
         """
-        if isinstance(notification, dict):
-            try:
-                notification = self.schema_class(**notification)
-            except ValidationError as e:
-                raise NotificationError(f"Invalid notification data: {str(e)}")
-        elif not isinstance(notification, self.schema_class):
-            try:
-                notification = self.schema_class(**notification.model_dump())
-            except ValidationError as e:
-                raise NotificationError(f"Invalid notification data: {str(e)}")
-        return notification
+        try:
+            if isinstance(data, dict):
+                notification = self.schema_class(**data)
+            elif isinstance(data, self.schema_class):
+                notification = data
+            else:
+                raise NotificationError(f"Invalid data type: {type(data)}", notifier_name=self.name)
 
-    @abstractmethod
-    def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
-        """Build notification payload.
+            if notification.msg_type not in self.supported_types:
+                raise NotificationError(f"Unsupported message type: {notification.msg_type}", notifier_name=self.name)
+
+            return notification
+        except ValidationError as e:
+            raise NotificationError(f"Invalid data data: {str(e)}", notifier_name=self.name)
+
+    def assemble_data(self, data: NotificationSchema) -> Dict[str, Any]:
+        """Assemble data data.
+
+        Args:
+            data: Notification data.
+
+        Returns:
+            Dict[str, Any]: API payload.
+
+        Raises:
+            NotificationError: If data is not valid.
+        """
+        return data.to_payload()
+
+    def _prepare_data(self, notification: NotificationSchema) -> Dict[str, Any]:
+        """Prepare data data.
 
         Args:
             notification: Notification data.
@@ -150,144 +242,67 @@ class AbstractNotifier(ABC):
             Dict[str, Any]: API payload.
 
         Raises:
-            NotificationError: If notification is not valid.
-        """
-        pass
-
-    def send(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Send notification.
-
-        Args:
-            data: Notification data.
-
-        Returns:
-            Dict[str, Any]: Response data.
-
-        Raises:
-            NotificationError: If notification fails.
+            NotificationError: If data preparation fails.
         """
         try:
-            notification = self.validate(data)
-            payload = self.build_payload(notification)
-
-            if not notification.webhook_url:
-                raise NotificationError("webhook_url is required")
-
-            with self._http_client as client:
-                response = client.request(
-                    method="POST", url=notification.webhook_url, headers=notification.headers, json=payload
-                )
-                status_code = response.status_code
-                try:
-                    response.raise_for_status()
-                    response_data = response.json()
-                    return NotificationResponse(
-                        success=True, name=self.name, message="Notification sent successfully", data=response_data
-                    ).model_dump()
-                except Exception as e:
-                    return NotificationResponse(
-                        success=False,
-                        name=self.name,
-                        message=f"Request failed with status {status_code}: {str(e)}",
-                        data=None,
-                    ).model_dump()
+            return self.assemble_data(notification)
+        except ValidationError as e:
+            raise NotificationError(f"Invalid data data: {str(e)}", notifier_name=self.name)
         except Exception as e:
-            return NotificationResponse(
-                success=False, name=self.name, message=f"Failed to send notification: {str(e)}", data=None
-            ).model_dump()
+            raise NotificationError(str(e), notifier_name=self.name)
 
-    async def send_async(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def send(self, notification_data: Dict[str, Any]) -> NotificationResponse:
+        """Send notification synchronously.
+
+        Args:
+            notification_data: Notification data
+
+        Returns:
+            NotificationResponse: Response data
+
+        Raises:
+            ValidationError: If validation fails
+            NotificationError: If notification fails
+        """
+        try:
+            notification = self.validate(notification_data)
+            request_params = self.prepare_request_params(notification, self._prepare_data(notification))
+            self._ensure_sync_client()
+            response = self._http_client.request(request_params.pop("method"), **request_params)
+            data = response.json()
+            return NotificationResponse(
+                success=True,
+                name=self.name,
+                message="Notification sent successfully",
+                data=data,
+            )
+        except Exception as e:
+            raise NotificationError(str(e), notifier_name=self.name)
+
+    async def send_async(self, notification_data: Dict[str, Any]) -> NotificationResponse:
         """Send notification asynchronously.
 
         Args:
-            data: Notification data.
+            notification_data: Notification data
 
         Returns:
-            Dict[str, Any]: Response data.
+            NotificationResponse: Response data
 
         Raises:
-            NotificationError: If notification fails.
+            ValidationError: If validation fails
+            NotificationError: If notification fails
         """
         try:
-            notification = self.validate(data)
-            payload = self.build_payload(notification)
-
-            if not notification.webhook_url:
-                raise NotificationError("webhook_url is required")
-
-            async with self._async_http_client as client:
-                response = await client.request(
-                    method="POST", url=notification.webhook_url, headers=notification.headers, json=payload
-                )
-                status_code = response.status_code
-                try:
-                    response.raise_for_status()
-                    response_data = await response.json()
-                    return NotificationResponse(
-                        success=True, name=self.name, message="Notification sent successfully", data=response_data
-                    ).model_dump()
-                except Exception as e:
-                    return NotificationResponse(
-                        success=False,
-                        name=self.name,
-                        message=f"Request failed with status {status_code}: {str(e)}",
-                        data=None,
-                    ).model_dump()
-        except Exception as e:
+            notification = self.validate(notification_data)
+            request_params = self.prepare_request_params(notification, self._prepare_data(notification))
+            await self._ensure_async_client()
+            response = await self._async_http_client.request(request_params.pop("method"), **request_params)
+            data = response.json()
             return NotificationResponse(
-                success=False, name=self.name, message=f"Failed to send notification: {str(e)}", data=None
-            ).model_dump()
-
-
-class BaseNotifier(AbstractNotifier):
-    """Base implementation of notifier with common functionality."""
-
-    def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
-        """Build notification payload.
-
-        Args:
-            notification: Notification data.
-
-        Returns:
-            Dict[str, Any]: API payload.
-
-        Raises:
-            NotificationError: If notification is not valid.
-        """
-        if not isinstance(notification, NotificationSchema):
-            raise NotificationError(f"Invalid notification type: {type(notification)}")
-        if notification.msg_type not in self.supported_types:
-            raise NotificationError(f"Unsupported message type: {notification.msg_type}")
-        notification = self.validate(notification)
-        return self._build_payload(notification)
-
-    def _build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
-        """Build notification payload.
-
-        Args:
-            notification: Notification data.
-
-        Returns:
-            Dict[str, Any]: API payload.
-        """
-        if notification.msg_type == MessageType.TEXT:
-            return {"msg_type": "text", "content": {"text": notification.content}}
-        raise NotificationError(f"Unsupported message type: {notification.msg_type}")
-
-
-class WebhookNotifier(BaseNotifier):
-    """Webhook notifier implementation."""
-
-    name = "webhook"
-
-    def build_payload(self, notification: NotificationSchema) -> Dict[str, Any]:
-        """Build webhook notification payload.
-
-        Args:
-            notification: Notification data.
-
-        Returns:
-            Dict[str, Any]: API payload.
-        """
-        notification = self.validate(notification)
-        return notification.to_payload()
+                success=True,
+                name=self.name,
+                message="Notification sent successfully",
+                data=data,
+            )
+        except Exception as e:
+            raise NotificationError(str(e), notifier_name=self.name)
