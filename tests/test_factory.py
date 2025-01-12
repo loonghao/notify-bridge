@@ -1,18 +1,15 @@
 """Tests for NotifierFactory."""
 
 # Import built-in modules
-from typing import Any
-from typing import Dict
+from typing import Any, Dict
 from unittest.mock import patch
 
 # Import third-party modules
 import pytest
 
 # Import local modules
-from notify_bridge.components import BaseNotifier
-from notify_bridge.components import NotificationSchema
-from notify_bridge.exceptions import NoSuchNotifierError
-from notify_bridge.exceptions import NotificationError
+from notify_bridge.components import BaseNotifier, NotificationSchema
+from notify_bridge.exceptions import NoSuchNotifierError, NotificationError
 from notify_bridge.factory import NotifierFactory
 from notify_bridge.utils import HTTPClientConfig
 

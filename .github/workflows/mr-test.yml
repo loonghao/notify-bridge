@@ -34,6 +34,7 @@ jobs:
             source .venv/bin/activate
           fi
           uv pip install -r requirements-dev.txt
+          pre-commit install
       - name: lint
         shell: bash
         run: |
@@ -42,4 +43,6 @@ jobs:
           else
             source .venv/bin/activate
           fi
+          export PYTHON_VERSION=${{ matrix.python-version }}
+          export SKIP=pre-commit-hooks  # Skip pre-commit hooks during lint
           nox -s lint

@@ -4,26 +4,16 @@ This module contains the base notifier classes and core functionality.
 """
 
 # Import built-in modules
-from abc import ABC
-from abc import abstractmethod
-from typing import Any
-from typing import ClassVar
-from typing import Dict
-from typing import Optional
-from typing import Type
-from typing import Union
+from abc import ABC, abstractmethod
+from typing import Any, ClassVar, Dict, Optional, Type, Union
 
 # Import third-party modules
 from pydantic import ValidationError
 
 # Import local modules
 from notify_bridge.exceptions import NotificationError
-from notify_bridge.schema import MessageType
-from notify_bridge.schema import NotificationResponse
-from notify_bridge.schema import NotificationSchema
-from notify_bridge.utils import AsyncHTTPClient
-from notify_bridge.utils import HTTPClient
-from notify_bridge.utils import HTTPClientConfig
+from notify_bridge.schema import MessageType, NotificationResponse, NotificationSchema
+from notify_bridge.utils import AsyncHTTPClient, HTTPClient, HTTPClientConfig
 
 
 class AbstractNotifier(ABC):
@@ -78,7 +68,6 @@ class AbstractNotifier(ABC):
         Args:
             config: HTTP client configuration.
         """
-        pass
 
     @abstractmethod
     def assemble_data(self, data: NotificationSchema) -> Dict[str, Any]:
@@ -93,7 +82,6 @@ class AbstractNotifier(ABC):
         Raises:
             NotificationError: If data is not valid.
         """
-        pass
 
     @abstractmethod
     def _prepare_data(self, notification: NotificationSchema) -> Dict[str, Any]:
@@ -108,7 +96,6 @@ class AbstractNotifier(ABC):
         Raises:
             NotificationError: If data preparation fails.
         """
-        pass
 
     @abstractmethod
     async def send_async(self, notification: NotificationSchema) -> NotificationResponse:
@@ -123,7 +110,6 @@ class AbstractNotifier(ABC):
         Raises:
             NotificationError: If data fails.
         """
-        pass
 
     @abstractmethod
     def send(self, notification: NotificationSchema) -> NotificationResponse:
@@ -138,7 +124,6 @@ class AbstractNotifier(ABC):
         Raises:
             NotificationError: If data fails.
         """
-        pass
 
     @abstractmethod
     def validate(self, data: Union[Dict[str, Any], NotificationSchema]) -> NotificationSchema:
@@ -153,7 +138,6 @@ class AbstractNotifier(ABC):
         Raises:
             NotificationError: If validation fails.
         """
-        pass
 
 
 class BaseNotifier(AbstractNotifier):
@@ -166,30 +150,47 @@ class BaseNotifier(AbstractNotifier):
             config: HTTP client configuration.
         """
         self._config = config or HTTPClientConfig()
-        self._http_client = None
-        self._async_http_client = None
+        self._sync_client: Optional[HTTPClient] = None
+        self._async_client: Optional[AsyncHTTPClient] = None
 
-    def _ensure_sync_client(self) -> None:
-        """Ensure sync client is initialized."""
-        if self._http_client is None:
-            self._http_client = HTTPClient(self._config)
+    def _ensure_sync_client(self) -> HTTPClient:
+        """Ensure sync client is initialized.
 
-    async def _ensure_async_client(self) -> None:
-        """Ensure async client is initialized."""
-        if self._async_http_client is None:
-            self._async_http_client = AsyncHTTPClient(self._config)
+        Returns:
+            HTTPClient: HTTP client instance.
+        """
+        if self._sync_client is None:
+            self._sync_client = HTTPClient(self._config)
+        return self._sync_client
+
+    async def _ensure_async_client(self) -> AsyncHTTPClient:
+        """Ensure async client is initialized.
+
+        Returns:
+            AsyncHTTPClient: Async HTTP client instance.
+        """
+        if self._async_client is None:
+            self._async_client = AsyncHTTPClient(self._config)
+        return self._async_client
 
     def close(self) -> None:
         """Close sync client."""
-        if self._http_client:
-            self._http_client.close()
-            self._http_client = None
+        if self._sync_client is not None:
+            self._sync_client.close()
+            self._sync_client = None
+        if self._async_client is not None:
+            # In sync context, we can't await the close() method
+            # Just set the client to None to allow garbage collection
+            self._async_client = None
 
     async def close_async(self) -> None:
         """Close async client."""
-        if self._async_http_client:
-            await self._async_http_client.close()
-            self._async_http_client = None
+        if self._sync_client is not None:
+            self._sync_client.close()
+            self._sync_client = None
+        if self._async_client is not None:
+            await self._async_client.close()
+            self._async_client = None
 
     def validate(self, data: Union[Dict[str, Any], NotificationSchema]) -> NotificationSchema:
         """Validate data data.
@@ -251,24 +252,23 @@ class BaseNotifier(AbstractNotifier):
         except Exception as e:
             raise NotificationError(str(e), notifier_name=self.name)
 
-    def send(self, notification_data: Dict[str, Any]) -> NotificationResponse:
-        """Send notification synchronously.
+    def send(self, notification_data: Union[Dict[str, Any], NotificationSchema]) -> NotificationResponse:
+        """Send notification.
 
         Args:
-            notification_data: Notification data
+            notification_data: Notification data.
 
         Returns:
-            NotificationResponse: Response data
+            NotificationResponse: Notification response.
 
         Raises:
-            ValidationError: If validation fails
-            NotificationError: If notification fails
+            NotificationError: If notification fails.
         """
         try:
             notification = self.validate(notification_data)
             request_params = self.prepare_request_params(notification, self._prepare_data(notification))
-            self._ensure_sync_client()
-            response = self._http_client.request(request_params.pop("method"), **request_params)
+            client = self._ensure_sync_client()
+            response = client.request(request_params.pop("method"), **request_params)
             data = response.json()
             return NotificationResponse(
                 success=True,
@@ -279,24 +279,23 @@ class BaseNotifier(AbstractNotifier):
         except Exception as e:
             raise NotificationError(str(e), notifier_name=self.name)
 
-    async def send_async(self, notification_data: Dict[str, Any]) -> NotificationResponse:
+    async def send_async(self, notification_data: Union[Dict[str, Any], NotificationSchema]) -> NotificationResponse:
         """Send notification asynchronously.
 
         Args:
-            notification_data: Notification data
+            notification_data: Notification data.
 
         Returns:
-            NotificationResponse: Response data
+            NotificationResponse: Notification response.
 
         Raises:
-            ValidationError: If validation fails
-            NotificationError: If notification fails
+            NotificationError: If notification fails.
         """
         try:
             notification = self.validate(notification_data)
             request_params = self.prepare_request_params(notification, self._prepare_data(notification))
-            await self._ensure_async_client()
-            response = await self._async_http_client.request(request_params.pop("method"), **request_params)
+            client = await self._ensure_async_client()
+            response = await client.request(request_params.pop("method"), **request_params)
             data = response.json()
             return NotificationResponse(
                 success=True,

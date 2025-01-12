@@ -1,8 +1,7 @@
 """Test fixtures and utilities for notify-bridge tests."""
 
 # Import built-in modules
-from typing import Any
-from typing import Dict
+from typing import Any, Dict
 from unittest.mock import Mock
 
 # Import third-party modules
@@ -10,8 +9,7 @@ import httpx
 import pytest
 
 # Import local modules
-from notify_bridge.components import BaseNotifier
-from notify_bridge.components import NotificationSchema
+from notify_bridge.components import BaseNotifier, NotificationSchema
 from notify_bridge.utils import HTTPClientConfig
 
 

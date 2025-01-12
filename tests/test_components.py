@@ -1,10 +1,8 @@
 """Tests for core components."""
 
 # Import built-in modules
-from typing import Any
-from typing import Dict
-from unittest.mock import AsyncMock
-from unittest.mock import Mock
+from typing import Any, Dict
+from unittest.mock import AsyncMock, Mock
 
 # Import third-party modules
 import httpx
@@ -12,8 +10,7 @@ import pytest
 
 # Import local modules
 from notify_bridge.components import BaseNotifier
-from notify_bridge.schema import NotificationResponse
-from notify_bridge.schema import WebhookSchema
+from notify_bridge.schema import NotificationResponse, WebhookSchema
 
 
 class TestSchema(WebhookSchema):

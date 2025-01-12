@@ -1,13 +1,12 @@
 """Tests for GitHub notifier."""
 
 # Import third-party modules
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
 
 # Import local modules
 from notify_bridge.components import MessageType
-from notify_bridge.notifiers.github import GitHubNotifier
-from notify_bridge.notifiers.github import GitHubSchema
+from notify_bridge.notifiers.github import GitHubNotifier, GitHubSchema
 
 
 def test_github_schema_validation():

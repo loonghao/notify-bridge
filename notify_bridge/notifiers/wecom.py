@@ -7,23 +7,14 @@ This module provides the WeCom (WeChat Work) notification implementation.
 import base64
 import logging
 from pathlib import Path
-from typing import Any
-from typing import ClassVar
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
 # Import third-party modules
-from pydantic import BaseModel
-from pydantic import Field
-from pydantic import field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 # Import local modules
-from notify_bridge.components import BaseNotifier
-from notify_bridge.components import MessageType
-from notify_bridge.components import NotificationError
+from notify_bridge.components import BaseNotifier, MessageType, NotificationError
 from notify_bridge.schema import WebhookSchema
-
 
 logger = logging.getLogger(__name__)
 
@@ -52,18 +43,18 @@ class WeComSchema(WebhookSchema):
         default_factory=list, description="List of mentioned mobile numbers"
     )
     image_path: Optional[str] = Field(None, description="Path to image file")
-    articles: Optional[List[Article]] = Field(default_factory=list, description="Articles for news message type")
+    articles: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="List of articles")
 
     @field_validator("content")
     @classmethod
-    def validate_content(cls, v: Optional[str], info: Dict[str, Any]) -> Optional[str]:
+    def validate_content(cls, v: Optional[str], info: ValidationInfo) -> Optional[str]:
         """Validate content field.
 
         Content is required for text and markdown messages, optional for others.
         """
         msg_type = info.data.get("msg_type")
         if msg_type in (MessageType.TEXT, MessageType.MARKDOWN) and not v:
-            raise ValueError("content is required for text and markdown messages")
+            raise NotificationError("content is required for text and markdown messages")
         return v
 
     class Config:
@@ -182,31 +173,32 @@ class WeComNotifier(BaseNotifier):
 
         return {
             "msgtype": "news",
-            "news": {"articles": [article.model_dump(exclude_none=True) for article in notification.articles]},
+            "news": {"articles": notification.articles},
             "text": {
                 "mentioned_list": notification.mentioned_list,
                 "mentioned_mobile_list": notification.mentioned_mobile_list,
             },
         }
 
-    def assemble_data(self, notification: WeComSchema) -> Dict[str, Any]:
-        """Build notification payload.
+    def assemble_data(self, data: WeComSchema) -> Dict[str, Any]:
+        """Assemble data data.
 
         Args:
-            notification: Notification data.
+            data: Notification data
 
         Returns:
-            Dict[str, Any]: API payload.
+            Dict[str, Any]: API payload
         """
-        if not isinstance(notification, WeComSchema):
-            raise NotificationError("Invalid notification schema type")
+        if not isinstance(data, WeComSchema):
+            raise NotificationError("data must be a WeComSchema instance")
 
-        if notification.msg_type == MessageType.TEXT:
-            return self._build_text_payload(notification)
-        elif notification.msg_type == MessageType.MARKDOWN:
-            return self._build_markdown_payload(notification)
-        elif notification.msg_type == MessageType.IMAGE:
-            return self._build_image_payload(notification)
-        elif notification.msg_type == MessageType.NEWS:
-            return self._build_news_payload(notification)
-        raise NotificationError(f"Unsupported message type: {notification.msg_type}")
+        payload = {"msgtype": data.msg_type}
+        if data.msg_type == MessageType.TEXT:
+            payload.update(self._build_text_payload(data))
+        elif data.msg_type == MessageType.MARKDOWN:
+            payload.update(self._build_markdown_payload(data))
+        elif data.msg_type == MessageType.IMAGE:
+            payload.update(self._build_image_payload(data))
+        elif data.msg_type == MessageType.NEWS:
+            payload.update(self._build_news_payload(data))
+        return payload

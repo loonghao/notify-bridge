@@ -9,10 +9,7 @@ import pytest
 
 # Import local modules
 from notify_bridge.exceptions import NotificationError
-from notify_bridge.notifiers.feishu import CardConfig
-from notify_bridge.notifiers.feishu import CardHeader
-from notify_bridge.notifiers.feishu import FeishuNotifier
-from notify_bridge.notifiers.feishu import FeishuSchema
+from notify_bridge.notifiers.feishu import CardConfig, CardHeader, FeishuNotifier, FeishuSchema
 from notify_bridge.schema import MessageType
 
 

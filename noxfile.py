@@ -74,22 +74,38 @@ def pytest(session: nox.Session) -> None:
 def lint(session: nox.Session) -> None:
     """Run linting checks.
 
-    This session runs the following checks:
-    1. isort - Check import sorting
-    2. black - Check code formatting
-    3. ruff - Check common issues
+    This session runs the following checks in order:
+    1. autoflake - Check unused imports and variables
+    2. ruff - Check common issues (including import sorting)
+    3. black - Check code formatting
     4. mypy - Check type hints
     5. pre-commit - Run pre-commit hooks
 
     Args:
         session: The nox session.
     """
-    session.install("isort", "ruff", "black", "mypy", "pre-commit")
-    session.run("isort", "--check-only", ".")
+    session.install("ruff", "pre-commit", "autoflake", "black", "mypy")
+
+    # Check unused imports and variables
+    session.run(
+        "autoflake",
+        "--check",
+        "--remove-all-unused-imports",
+        "--remove-unused-variables",
+        "--recursive",
+        PACKAGE_NAME,
+        "tests",
+    )
+
+    # Check and fix common issues with ruff
+    # Use --fix to auto-fix import sorting issues
+    session.run("ruff", "check", "--fix", ".")
+
+    # Check code formatting
     session.run("black", "--check", ".")
-    session.run("ruff", "check")
+
+    # Check type hints
     session.run("mypy", PACKAGE_NAME)
-    session.run("pre-commit", "run", "--all-files", "--show-diff-on-failure")
 
 
 @nox.session(name="lint-fix")
@@ -98,31 +114,15 @@ def lint_fix(session: nox.Session) -> None:
 
     This session runs the following tools in order:
     1. autoflake - Remove unused imports and variables
-    2. isort - Sort imports
+    2. ruff - Fix common issues (including import sorting)
     3. black - Format code
-    4. ruff - Fix common issues
-    5. mypy - Check type hints
-    6. pre-commit - Run pre-commit hooks
+    4. mypy - Check type hints
+    5. pre-commit - Run pre-commit hooks
 
     Args:
         session: The nox session.
     """
-    session.install("isort", "ruff", "pre-commit", "autoflake", "black", "mypy")
-
-    # Fix common issues with ruff
-    session.run("ruff", "check", "--fix", silent=True)
-
-    # Sort imports
-    session.run("isort", ".")
-
-    # Format code with black
-    session.run("black", ".")
-
-    # Check type hints
-    session.run("mypy", PACKAGE_NAME)
-
-    # Run pre-commit hooks
-    session.run("pre-commit", "run", "--all-files")
+    session.install("ruff", "pre-commit", "autoflake", "black", "mypy")
 
     # First remove unused imports and variables
     session.run(
@@ -134,6 +134,15 @@ def lint_fix(session: nox.Session) -> None:
         PACKAGE_NAME,
         "tests",
     )
+
+    # Fix common issues with ruff (including imports)
+    session.run("ruff", "check", "--fix", ".", silent=True)
+
+    # Format code with black
+    session.run("black", ".")
+
+    # Check type hints
+    session.run("mypy", PACKAGE_NAME)
 
 
 @nox.session(name="docs")

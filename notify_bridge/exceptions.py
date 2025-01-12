@@ -6,9 +6,7 @@ This module contains all custom exceptions used in notify-bridge.
 # Import built-in modules
 import os
 import traceback
-from typing import Any
-from typing import Dict
-from typing import Optional
+from typing import Any, Dict, Optional
 
 
 class NotifyBridgeError(Exception):
