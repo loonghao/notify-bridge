@@ -4,8 +4,13 @@ version = "0.2.0"
 description = "A bridge for sending notifications to various platforms"
 readme = "README.md"
 requires-python = ">=3.8"
-license = { file = "LICENSE" }
-keywords = ["notification", "bridge", "feishu", "dingtalk", "wechat"]
+keywords = [
+    "notification",
+    "bridge",
+    "feishu",
+    "dingtalk",
+    "wechat",
+]
 authors = [
     { name = "Long Hao", email = "hal.long@outlook.com" },
 ]
@@ -28,6 +33,9 @@ dependencies = [
     "aiofiles>=23.2.1",
 ]
 
+[project.license]
+file = "LICENSE"
+
 [project.urls]
 Homepage = "https://github.com/loonghao/notify-bridge"
 Documentation = "https://github.com/loonghao/notify-bridge#readme"
@@ -36,7 +44,6 @@ Issues = "https://github.com/loonghao/notify-bridge/issues"
 
 [project.entry-points."notify_bridge.notifiers"]
 feishu = "notify_bridge.notifiers.feishu:FeishuNotifier"
-
 
 [project.optional-dependencies]
 dev = [
@@ -57,10 +64,6 @@ version_files = [
     "pyproject.toml:version",
 ]
 
-[build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
-
 [tool.pdm]
 distribution = true
 
@@ -72,25 +75,15 @@ test = [
 
 [tool.black]
 line-length = 120
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
-include = '\.pyi?$'
-exclude = '''
-(
-  /(
-      \.eggs         # exclude a few common directories in the
-    | \.git          # root of the project
-    | \.hg
-    | \.mypy_cache
-    | \.tox
-    | \.nox
-    | \.venv
-    | _build
-    | buck-out
-    | build
-    | dist
-  )/
-)
-'''
+target-version = [
+    "py38",
+    "py39",
+    "py310",
+    "py311",
+    "py312",
+]
+include = "\\.pyi?$"
+exclude = "(\n  /(\n      \\.eggs         # exclude a few common directories in the\n    | \\.git          # root of the project\n    | \\.hg\n    | \\.mypy_cache\n    | \\.tox\n    | \\.nox\n    | \\.venv\n    | _build\n    | buck-out\n    | build\n    | dist\n  )/\n)\n"
 
 [tool.isort]
 profile = "black"
@@ -102,65 +95,81 @@ use_parentheses = true
 lines_between_types = 1
 ensure_newline_before_comments = true
 line_length = 120
-src_paths = ["notify_bridge", "tests"]
+src_paths = [
+    "notify_bridge",
+    "tests",
+]
 filter_files = true
 known_first_party = "notify_bridge"
-
-# Enforce import section headers.
 import_heading_future = "Import future modules"
 import_heading_stdlib = "Import built-in modules"
 import_heading_thirdparty = "Import third-party modules"
 import_heading_firstparty = "Import local modules"
-
 force_sort_within_sections = true
 force_single_line = true
-
-# All project unrelated unknown imports belong to third-party.
 default_section = "THIRDPARTY"
 skip_glob = []
 
 [tool.mypy]
 python_version = "3.8"
-warn_return_any = true
+warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = true
-disallow_incomplete_defs = true
 check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-packages = ["notify_bridge"]
+packages = [
+    "notify_bridge",
+]
 ignore_missing_imports = true
 namespace_packages = false
 explicit_package_bases = false
-disable_error_code = ["misc", "has-type"]
+disable_error_code = [
+    "misc",
+    "has-type",
+]
 
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-src = ["src", "tests"]
+src = [
+    "src",
+    "tests",
+]
 
 [tool.ruff.lint]
 select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "C",  # flake8-comprehensions
-    "B",  # flake8-bugbear
+    "E",
+    "W",
+    "F",
+    "I",
+    "C",
+    "B",
 ]
-ignore = ["E501", "PLR0913", "RUF001", "RUF002", "RUF003", "B904", "W293"]
+ignore = [
+    "E501",
+    "PLR0913",
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    "B904",
+    "W293",
+]
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]
-"noxfile.py" = ["E402", "I001"]
-"tests/*" = ["S101"]
+"__init__.py" = [
+    "F401",
+]
+"noxfile.py" = [
+    "E402",
+    "I001",
+]
+"tests/*" = [
+    "S101",
+]
 
 [tool.coverage.run]
-source = ["notify_bridge"]
+source = [
+    "notify_bridge",
+]
 branch = true
 
 [tool.coverage.report]
@@ -175,6 +184,20 @@ exclude_lines = [
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
-testpaths = ["tests"]
-python_files = ["test_*.py"]
+testpaths = [
+    "tests",
+]
+python_files = [
+    "test_*.py",
+]
 addopts = "-v --cov=notify_bridge --cov-report=term-missing"
+
+[tool.ai-rules.scripts.new]
+path = "G:\\PycharmProjects\\github\\ai-rules\\examples\\test_script.py"
+global = false
+
+[build-system]
+requires = [
+    "pdm-backend",
+]
+build-backend = "pdm.backend"

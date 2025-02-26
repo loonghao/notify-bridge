@@ -6,14 +6,15 @@ This module provides the WeCom (WeChat Work) notification implementation.
 # Import built-in modules
 import base64
 import logging
+import re
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional, Union
 
 # Import third-party modules
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 # Import local modules
-from notify_bridge.components import BaseNotifier, MessageType, NotificationError
+from notify_bridge.components import BaseNotifier, HTTPClientConfig, MessageType, NotificationError
 from notify_bridge.schema import WebhookSchema
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,19 @@ class Article(BaseModel):
 
 
 class WeComSchema(WebhookSchema):
-    """Schema for WeCom notifications."""
+    """Schema for WeCom notifications.
+
+    Args:
+        webhook_url: Webhook URL
+        content: Message content
+        mentioned_list: List of mentioned users
+        mentioned_mobile_list: List of mentioned mobile numbers
+        image_path: Path to image file
+        media_id: Media ID for file/voice message
+        media_path: Path to media file for file/voice message
+        articles: List of articles
+        color_map: Custom color mapping for markdown messages
+    """
 
     webhook_url: str = Field(..., description="Webhook URL", alias="base_url")
     content: Optional[str] = Field(None, description="Message content", alias="message")
@@ -43,7 +56,12 @@ class WeComSchema(WebhookSchema):
         default_factory=list, description="List of mentioned mobile numbers"
     )
     image_path: Optional[str] = Field(None, description="Path to image file")
+    media_id: Optional[str] = Field(None, description="Media ID for file/voice message")
+    media_path: Optional[str] = Field(None, description="Path to media file for file/voice message")
     articles: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="List of articles")
+    color_map: Optional[Dict[str, str]] = Field(
+        default_factory=dict, description="Custom color mapping for markdown messages"
+    )
 
     @field_validator("content")
     @classmethod
@@ -73,7 +91,41 @@ class WeComNotifier(BaseNotifier):
         MessageType.MARKDOWN,
         MessageType.IMAGE,
         MessageType.NEWS,
+        MessageType.FILE,  #
+        MessageType.VOICE,  #
     }
+
+    def __init__(self, config: Optional[HTTPClientConfig] = None) -> None:
+        """Initialize notifier.
+
+        Args:
+            config: HTTP client configuration.
+        """
+        super().__init__(config)
+        self._webhook_key: Optional[str] = None
+
+    def validate(self, data: Union[Dict[str, Any], WeComSchema]) -> WeComSchema:
+        """Validate notification data.
+
+        Args:
+            data: Notification data.
+
+        Returns:
+            WeComSchema: Validated notification schema.
+
+        Raises:
+            NotificationError: If validation fails.
+        """
+        notification = super().validate(data)
+        if not isinstance(notification, WeComSchema):
+            raise NotificationError("data must be a WeComSchema instance")
+
+        # Extract webhook key from webhook_url
+        webhook_url = notification.webhook_url
+        if webhook_url:
+            self._webhook_key = webhook_url.split("key=")[-1].split("&")[0]
+
+        return notification
 
     def _encode_image(self, image_path: str) -> tuple[str, str]:
         """Encode image to base64.
@@ -102,6 +154,110 @@ class WeComNotifier(BaseNotifier):
                 return base64_data, md5
         except Exception as e:
             raise NotificationError(f"Failed to encode image: {str(e)}")
+
+    def _upload_media(self, file_path: str, media_type: str) -> str:
+        """Upload media file to WeChat Work.
+
+        Args:
+            file_path: Path to media file
+            media_type: Type of media file (file/voice)
+
+        Returns:
+            str: media_id
+
+        Raises:
+            NotificationError: If file not found or upload fails
+        """
+        path = Path(file_path)
+        if not path.exists():
+            raise NotificationError(f"File not found: {file_path}")
+
+        # Check file size
+        file_size = path.stat().st_size
+        if file_size < 5:
+            raise NotificationError("File size must be greater than 5 bytes")
+
+        if media_type == "file" and file_size > 20 * 1024 * 1024:  # 20MB
+            raise NotificationError("File size must not exceed 20MB")
+        elif media_type == "voice" and file_size > 2 * 1024 * 1024:  # 2MB
+            raise NotificationError("Voice file size must not exceed 2MB")
+
+        # Extract webhook key from webhook_url
+        if not hasattr(self, "_webhook_key"):
+            raise NotificationError("Webhook URL not set")
+
+        try:
+            # Prepare multipart form data
+            url = f"https://qyapi.weixin.qq.com/cgi-bin/webhook/upload_media?key={self._webhook_key}&type={media_type}"
+
+            with open(file_path, "rb") as f:
+                files = {"media": (path.name, f, "application/octet-stream")}
+                response = self._ensure_sync_client().post(url, files=files)
+
+            result = response.json()
+            if result.get("errcode") != 0:
+                raise NotificationError(f"Failed to upload file: {result.get('errmsg')}")
+
+            media_id = result.get("media_id")
+            if not media_id or not isinstance(media_id, str):
+                raise NotificationError("Failed to upload media: invalid media_id")
+            return media_id
+        except Exception as e:
+            raise NotificationError(f"Failed to upload file: {str(e)}")
+
+    def _format_markdown(self, content: str, color_map: Optional[Dict[str, str]] = None) -> str:
+        """Format markdown content.
+
+        Args:
+            content: The markdown content to format.
+            color_map: Optional color mapping for text.
+
+        Returns:
+            str: The formatted markdown content.
+        """
+        # type: ignore[return]
+        if not isinstance(content, str):
+            raise NotificationError("Content must be a string")
+
+        # Replace horizontal rules
+        content = re.sub(r"^-{3,}$", "\n---\n", content, flags=re.MULTILINE)
+
+        # Add support for colored text
+        default_colors = {"info": "green", "comment": "gray", "warning": "orange-red"}
+        colors = {**default_colors, **(color_map or {})}
+        for color, _ in colors.items():
+            content = content.replace(f'<font color="{color}">', f'<font color="{color}">')
+
+        # Replace list markers for better visual effect
+        content = re.sub(r"^\s*[-*+]\s+", "• ", content, flags=re.MULTILINE)  # Unordered lists
+
+        # Convert ordered lists to use Chinese numbers for better visual effect
+        def replace_ordered_list(match: re.Match[str]) -> str:
+            num = int(match.group(1))
+            chinese_nums = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+            if 1 <= num <= 10:
+                return f"{chinese_nums[num - 1]}、"
+            return f"{num}."
+
+        content = re.sub(r"^\s*(\d+)\.\s+", replace_ordered_list, content, flags=re.MULTILINE)
+
+        # Format blockquotes
+        content = re.sub(r"^\s*>\s*(.+)$", r"> \1", content, flags=re.MULTILINE)
+
+        # Format inline code
+        content = re.sub(r"`([^`]+)`", r"`\1`", content)
+
+        # Format links
+        content = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"[\1](\2)", content)
+
+        # Format bold text
+        content = re.sub(r"\*\*([^*]+)\*\*", r"**\1**", content)
+
+        # Format italic text
+        content = re.sub(r"\*([^*]+)\*", r"*\1*", content)
+        content = re.sub(r"_([^_]+)_", r"*\1*", content)
+
+        return content
 
     def _build_text_payload(self, notification: WeComSchema) -> Dict[str, Any]:
         """Build text message payload.
@@ -142,7 +298,15 @@ class WeComNotifier(BaseNotifier):
         if not notification.content:
             raise NotificationError("content is required for markdown messages")
 
-        return {"msgtype": "markdown", "markdown": {"content": notification.content}}
+        formatted_content = self._format_markdown(notification.content, notification.color_map)
+        return {
+            "msgtype": "markdown",
+            "markdown": {
+                "content": formatted_content,
+                "mentioned_list": notification.mentioned_list,
+                "mentioned_mobile_list": notification.mentioned_mobile_list,
+            },
+        }
 
     def _build_image_payload(self, notification: WeComSchema) -> Dict[str, Any]:
         """Build image message payload.
@@ -180,6 +344,48 @@ class WeComNotifier(BaseNotifier):
             },
         }
 
+    def _build_file_payload(self, notification: WeComSchema) -> Dict[str, Any]:
+        """Build file message payload.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: File message payload.
+
+        Raises:
+            NotificationError: If media_id is missing.
+        """
+        if not notification.media_id and not notification.media_path:
+            raise NotificationError("Either media_id or media_path is required for file message")
+
+        media_id = notification.media_id
+        if not media_id and notification.media_path:
+            media_id = self._upload_media(notification.media_path, "file")
+
+        return {"msgtype": "file", "file": {"media_id": media_id}}
+
+    def _build_voice_payload(self, notification: WeComSchema) -> Dict[str, Any]:
+        """Build voice message payload.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Voice message payload.
+
+        Raises:
+            NotificationError: If media_id is missing.
+        """
+        if not notification.media_id and not notification.media_path:
+            raise NotificationError("Either media_id or media_path is required for voice message")
+
+        media_id = notification.media_id
+        if not media_id and notification.media_path:
+            media_id = self._upload_media(notification.media_path, "voice")
+
+        return {"msgtype": "voice", "voice": {"media_id": media_id}}
+
     def assemble_data(self, data: WeComSchema) -> Dict[str, Any]:
         """Assemble data data.
 
@@ -201,4 +407,11 @@ class WeComNotifier(BaseNotifier):
             payload.update(self._build_image_payload(data))
         elif data.msg_type == MessageType.NEWS:
             payload.update(self._build_news_payload(data))
+        elif data.msg_type == MessageType.FILE:
+            payload.update(self._build_file_payload(data))
+        elif data.msg_type == MessageType.VOICE:
+            payload.update(self._build_voice_payload(data))
+        else:
+            raise NotificationError(f"Unsupported message type: {data.msg_type}")
+
         return payload

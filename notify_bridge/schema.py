@@ -20,6 +20,7 @@ class MessageType(str, Enum):
     POST = "post"
     IMAGE = "image"
     FILE = "file"
+    VOICE = "voice"
     INTERACTIVE = "interactive"
 
 
