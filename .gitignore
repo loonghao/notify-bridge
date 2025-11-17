@@ -23,3 +23,8 @@ target/*
 /run-ide.bat
 /dist/
 /examples/.env
+.mypy_cache/
+.pdm-build/
+.pytest_cache/
+.venv/
+.ruff_cache/

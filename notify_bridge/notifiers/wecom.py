@@ -89,6 +89,7 @@ class WeComNotifier(BaseNotifier):
     supported_types: ClassVar[set[MessageType]] = {
         MessageType.TEXT,
         MessageType.MARKDOWN,
+        MessageType.MARKDOWN_V2,
         MessageType.IMAGE,
         MessageType.NEWS,
         MessageType.FILE,  #
@@ -255,7 +256,7 @@ class WeComNotifier(BaseNotifier):
 
         # Format italic text
         content = re.sub(r"\*([^*]+)\*", r"*\1*", content)
-        content = re.sub(r"_([^_]+)_", r"*\1*", content)
+        # Note: Preserve underscores as-is, do not convert to italic
 
         return content
 
@@ -303,6 +304,33 @@ class WeComNotifier(BaseNotifier):
             "msgtype": "markdown",
             "markdown": {
                 "content": formatted_content,
+                "mentioned_list": notification.mentioned_list,
+                "mentioned_mobile_list": notification.mentioned_mobile_list,
+            },
+        }
+
+    def _build_markdown_v2_payload(self, notification: WeComSchema) -> Dict[str, Any]:
+        """Build markdown_v2 message payload.
+
+        This method passes the content as-is without any formatting transformations,
+        preserving underscores and other special characters.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Markdown_v2 message payload.
+
+        Raises:
+            NotificationError: If content is missing.
+        """
+        if not notification.content:
+            raise NotificationError("content is required for markdown_v2 messages")
+
+        return {
+            "msgtype": "markdown",
+            "markdown": {
+                "content": notification.content,
                 "mentioned_list": notification.mentioned_list,
                 "mentioned_mobile_list": notification.mentioned_mobile_list,
             },
@@ -398,11 +426,15 @@ class WeComNotifier(BaseNotifier):
         if not isinstance(data, WeComSchema):
             raise NotificationError("data must be a WeComSchema instance")
 
-        payload = {"msgtype": data.msg_type}
+        # For MARKDOWN_V2, the msgtype should still be "markdown"
+        msgtype = "markdown" if data.msg_type == MessageType.MARKDOWN_V2 else data.msg_type
+        payload = {"msgtype": msgtype}
         if data.msg_type == MessageType.TEXT:
             payload.update(self._build_text_payload(data))
         elif data.msg_type == MessageType.MARKDOWN:
             payload.update(self._build_markdown_payload(data))
+        elif data.msg_type == MessageType.MARKDOWN_V2:
+            payload.update(self._build_markdown_v2_payload(data))
         elif data.msg_type == MessageType.IMAGE:
             payload.update(self._build_image_payload(data))
         elif data.msg_type == MessageType.NEWS:
