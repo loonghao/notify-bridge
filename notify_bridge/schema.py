@@ -16,6 +16,7 @@ class MessageType(str, Enum):
 
     TEXT = "text"
     MARKDOWN = "markdown"
+    MARKDOWN_V2 = "markdown_v2"
     NEWS = "news"
     POST = "post"
     IMAGE = "image"

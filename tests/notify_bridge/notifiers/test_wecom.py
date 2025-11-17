@@ -42,6 +42,7 @@ def test_wecom_notifier_initialization():
     assert notifier.schema_class == WeComSchema
     assert MessageType.TEXT in notifier.supported_types
     assert MessageType.MARKDOWN in notifier.supported_types
+    assert MessageType.MARKDOWN_V2 in notifier.supported_types
     assert MessageType.IMAGE in notifier.supported_types
     assert MessageType.NEWS in notifier.supported_types
 
@@ -84,6 +85,30 @@ def test_build_markdown_payload():
     payload = notifier.assemble_data(notification)
     assert payload["msgtype"] == "markdown"
     assert payload["markdown"]["content"] == "# Test Title\n\nTest content"
+
+
+def test_build_markdown_v2_payload():
+    """Test markdown_v2 message payload building."""
+    notifier = WeComNotifier()
+
+    # Test markdown_v2 message with underscores (should be preserved)
+    notification = WeComSchema(
+        webhook_url="https://test.url", msg_type="markdown_v2", content="# Test Title\n\n_underscored_text_"
+    )
+    payload = notifier.assemble_data(notification)
+    assert payload["msgtype"] == "markdown"
+    assert payload["markdown"]["content"] == "# Test Title\n\n_underscored_text_"
+
+    # Test markdown_v2 message with complex content
+    complex_content = """# Title
+**bold** and *italic* and _underscored_
+- list item
+`code`"""
+    notification = WeComSchema(webhook_url="https://test.url", msg_type="markdown_v2", content=complex_content)
+    payload = notifier.assemble_data(notification)
+    assert payload["msgtype"] == "markdown"
+    # Content should be passed as-is without formatting
+    assert payload["markdown"]["content"] == complex_content
 
 
 def test_build_image_payload():
@@ -314,7 +339,8 @@ def test_format_markdown():
     # Test text formatting
     assert "**加粗文本**" in notifier._format_markdown("**加粗文本**")
     assert "*斜体文本*" in notifier._format_markdown("*斜体文本*")
-    assert "*斜体文本*" in notifier._format_markdown("_斜体文本_")
+    # Underscores should be preserved as-is, not converted to italic
+    assert "_斜体文本_" in notifier._format_markdown("_斜体文本_")
     assert "`代码`" in notifier._format_markdown("`代码`")
     assert "> 引用" in notifier._format_markdown("> 引用")
     assert "[链接](https://example.com)" in notifier._format_markdown("[链接](https://example.com)")
@@ -378,3 +404,39 @@ def test_markdown_payload_with_custom_colors():
     )
     payload = notifier.assemble_data(data)
     assert '<font color="success">成功</font>' in payload["markdown"]["content"]
+
+
+def test_markdown_preserves_underscores():
+    """Test that markdown formatting preserves underscores."""
+    notifier = WeComNotifier()
+
+    # Test that underscores are preserved in markdown mode
+    content_with_underscores = "This is _underscored_text_ and __double_underscored__"
+    formatted = notifier._format_markdown(content_with_underscores)
+    # Underscores should be preserved as-is
+    assert "_underscored_text_" in formatted
+    assert "__double_underscored__" in formatted
+
+
+def test_markdown_v2_preserves_all_formatting():
+    """Test that markdown_v2 preserves all content as-is."""
+    notifier = WeComNotifier()
+
+    # Test various markdown elements that should be preserved
+    test_cases = [
+        "# Header with _underscores_",
+        "**bold** and *italic* and _underscored_",
+        "- list with _underscores_",
+        "`code_with_underscores`",
+        "[link_text](https://example.com/path_with_underscores)",
+        "---",
+        "> quote with _underscores_",
+    ]
+
+    for test_content in test_cases:
+        notification = WeComSchema(webhook_url="https://test.url", msg_type="markdown_v2", content=test_content)
+        payload = notifier.assemble_data(notification)
+        # Content should be exactly the same as input
+        assert payload["markdown"]["content"] == test_content
+        # msgtype should be "markdown" not "markdown_v2"
+        assert payload["msgtype"] == "markdown"
