@@ -1,3 +1,9 @@
+## v0.3.2 (2025-11-17)
+
+### Fix
+
+- escape forward slashes in WeCom markdown_v2 format
+
 ## v0.3.1 (2025-11-17)
 
 ### Fix
