@@ -309,11 +309,26 @@ class WeComNotifier(BaseNotifier):
             },
         }
 
+    def _escape_markdown_v2(self, text: str) -> str:
+        r"""Escape special characters for markdown_v2 format.
+
+        According to WeCom official documentation example, only forward slash (/)
+        needs to be escaped in markdown_v2 format.
+
+        Args:
+            text: The text to escape.
+
+        Returns:
+            str: The escaped text with forward slashes escaped.
+        """
+        # Based on official example, only forward slash needs to be escaped
+        # Example from docs: [这是一个链接](https:work.weixin.qq.com\/api\/doc)
+        return text.replace('/', r'\/')
+
     def _build_markdown_v2_payload(self, notification: WeComSchema) -> Dict[str, Any]:
         """Build markdown_v2 message payload.
 
-        This method passes the content as-is without any formatting transformations,
-        preserving underscores and other special characters.
+        This method escapes special characters according to WeCom markdown_v2 specification.
 
         Args:
             notification: Notification data.
@@ -327,10 +342,13 @@ class WeComNotifier(BaseNotifier):
         if not notification.content:
             raise NotificationError("content is required for markdown_v2 messages")
 
+        # Escape special characters for markdown_v2
+        escaped_content = self._escape_markdown_v2(notification.content)
+
         return {
             "msgtype": "markdown",
             "markdown": {
-                "content": notification.content,
+                "content": escaped_content,
                 "mentioned_list": notification.mentioned_list,
                 "mentioned_mobile_list": notification.mentioned_mobile_list,
             },

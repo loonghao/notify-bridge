@@ -91,24 +91,22 @@ def test_build_markdown_v2_payload():
     """Test markdown_v2 message payload building."""
     notifier = WeComNotifier()
 
-    # Test markdown_v2 message with underscores (should be preserved)
+    # Test markdown_v2 message with underscores (should be preserved, only / is escaped)
     notification = WeComSchema(
         webhook_url="https://test.url", msg_type="markdown_v2", content="# Test Title\n\n_underscored_text_"
     )
     payload = notifier.assemble_data(notification)
     assert payload["msgtype"] == "markdown"
+    # Only forward slashes should be escaped in markdown_v2
     assert payload["markdown"]["content"] == "# Test Title\n\n_underscored_text_"
 
-    # Test markdown_v2 message with complex content
-    complex_content = """# Title
-**bold** and *italic* and _underscored_
-- list item
-`code`"""
-    notification = WeComSchema(webhook_url="https://test.url", msg_type="markdown_v2", content=complex_content)
+    # Test markdown_v2 message with URL (forward slashes should be escaped)
+    url_content = "[这是一个链接](https://work.weixin.qq.com/api/doc)"
+    notification = WeComSchema(webhook_url="https://test.url", msg_type="markdown_v2", content=url_content)
     payload = notifier.assemble_data(notification)
     assert payload["msgtype"] == "markdown"
-    # Content should be passed as-is without formatting
-    assert payload["markdown"]["content"] == complex_content
+    # Forward slashes in URLs should be escaped
+    assert payload["markdown"]["content"] == r"[这是一个链接](https:\/\/work.weixin.qq.com\/api\/doc)"
 
 
 def test_build_image_payload():
@@ -419,24 +417,24 @@ def test_markdown_preserves_underscores():
 
 
 def test_markdown_v2_preserves_all_formatting():
-    """Test that markdown_v2 preserves all content as-is."""
+    """Test that markdown_v2 escapes forward slashes only."""
     notifier = WeComNotifier()
 
-    # Test various markdown elements that should be preserved
+    # Test various markdown elements - only forward slashes should be escaped
     test_cases = [
-        "# Header with _underscores_",
-        "**bold** and *italic* and _underscored_",
-        "- list with _underscores_",
-        "`code_with_underscores`",
-        "[link_text](https://example.com/path_with_underscores)",
-        "---",
-        "> quote with _underscores_",
+        ("# Header with _underscores_", "# Header with _underscores_"),
+        ("**bold** and *italic* and _underscored_", "**bold** and *italic* and _underscored_"),
+        ("- list with _underscores_", "- list with _underscores_"),
+        ("`code_with_underscores`", "`code_with_underscores`"),
+        ("[link_text](https://example.com/path_with_underscores)", r"[link_text](https:\/\/example.com\/path_with_underscores)"),
+        ("---", "---"),
+        ("> quote with _underscores_", "> quote with _underscores_"),
     ]
 
-    for test_content in test_cases:
-        notification = WeComSchema(webhook_url="https://test.url", msg_type="markdown_v2", content=test_content)
+    for input_content, expected_content in test_cases:
+        notification = WeComSchema(webhook_url="https://test.url", msg_type="markdown_v2", content=input_content)
         payload = notifier.assemble_data(notification)
-        # Content should be exactly the same as input
-        assert payload["markdown"]["content"] == test_content
+        # Only forward slashes should be escaped
+        assert payload["markdown"]["content"] == expected_content
         # msgtype should be "markdown" not "markdown_v2"
         assert payload["msgtype"] == "markdown"
