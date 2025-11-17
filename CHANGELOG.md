@@ -1,3 +1,9 @@
+## v0.3.0 (2025-02-26)
+
+### Feat
+
+- **wecom**: enhance markdown support and add custom color mapping
+
 ## v0.2.0 (2025-01-12)
 
 ### Feat
