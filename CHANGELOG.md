@@ -1,3 +1,9 @@
+## v0.3.1 (2025-11-17)
+
+### Fix
+
+- **wecom**: preserve underscores &amp; support markdown_v2
+
 ## v0.3.0 (2025-02-26)
 
 ### Feat
