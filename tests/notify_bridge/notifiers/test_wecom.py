@@ -426,7 +426,10 @@ def test_markdown_v2_preserves_all_formatting():
         ("**bold** and *italic* and _underscored_", "**bold** and *italic* and _underscored_"),
         ("- list with _underscores_", "- list with _underscores_"),
         ("`code_with_underscores`", "`code_with_underscores`"),
-        ("[link_text](https://example.com/path_with_underscores)", r"[link_text](https:\/\/example.com\/path_with_underscores)"),
+        (
+            "[link_text](https://example.com/path_with_underscores)",
+            r"[link_text](https:\/\/example.com\/path_with_underscores)",
+        ),
         ("---", "---"),
         ("> quote with _underscores_", "> quote with _underscores_"),
     ]

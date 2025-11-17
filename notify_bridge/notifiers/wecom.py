@@ -323,7 +323,7 @@ class WeComNotifier(BaseNotifier):
         """
         # Based on official example, only forward slash needs to be escaped
         # Example from docs: [这是一个链接](https:work.weixin.qq.com\/api\/doc)
-        return text.replace('/', r'\/')
+        return text.replace("/", r"\/")
 
     def _build_markdown_v2_payload(self, notification: WeComSchema) -> Dict[str, Any]:
         """Build markdown_v2 message payload.
