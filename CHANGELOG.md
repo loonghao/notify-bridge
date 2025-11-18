@@ -1,3 +1,13 @@
+## v0.5.0 (2025-11-18)
+
+### Feat
+
+- add WeCom template card support for text_notice and news_notice
+
+### Fix
+
+- resolve black formatting and mypy type checking issues
+
 ## v0.4.0 (2025-11-18)
 
 ### Feat
