@@ -68,6 +68,23 @@ def test_sync(url: str) -> None:
     )
     print(f"Response: {response}")
 
+    # Test upload_media (Note: This is NOT an official WeCom webhook message type)
+    print("\nTesting upload_media (convenience API)...")
+    pdf_path = Path(__file__).parent / "assets" / "example.pdf"
+    if pdf_path.exists():
+        response = bridge.send(
+            "wecom",
+            webhook_url=url,
+            msg_type="upload_media",
+            media_path=str(pdf_path),
+            upload_media_type="file",
+        )
+        print(f"Response: {response}")
+        print("Note: upload_media is not an official WeCom webhook message type.")
+        print("It's exposed for convenience to access the upload_media API endpoint.")
+    else:
+        print(f"[X] Example PDF not found at {pdf_path}")
+
 
 async def test_async(url: str) -> None:
     """Test asynchronous notifications.
@@ -128,6 +145,23 @@ async def test_async(url: str) -> None:
         ],
     )
     print(f"Response: {response}")
+
+    # Test upload_media (Note: This is NOT an official WeCom webhook message type)
+    print("\nTesting async upload_media (convenience API)...")
+    pdf_path = Path(__file__).parent / "assets" / "example.pdf"
+    if pdf_path.exists():
+        response = await bridge.send_async(
+            "wecom",
+            webhook_url=url,
+            msg_type="upload_media",
+            media_path=str(pdf_path),
+            upload_media_type="file",
+        )
+        print(f"Response: {response}")
+        print("Note: upload_media is not an official WeCom webhook message type.")
+        print("It's exposed for convenience to access the upload_media API endpoint.")
+    else:
+        print(f"[X] Example PDF not found at {pdf_path}")
 
 
 def setup_test_environment() -> None:
