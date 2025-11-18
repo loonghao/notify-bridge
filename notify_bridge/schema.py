@@ -105,7 +105,7 @@ class WebhookSchema(NotificationSchema):
 
     webhook_url: Optional[str] = Field(None, description="Webhook URL")
     title: Optional[str] = Field(None, description="Message title")
-    content: Optional[str] = Field(None, description="Message content")
+    content: Optional[str] = Field(None, description="Message content", alias="message")
 
     @property
     def url(self) -> str:

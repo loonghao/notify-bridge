@@ -255,10 +255,10 @@ class WeComSchema(WebhookSchema):
     def validate_content(cls, v: Optional[str], info: ValidationInfo) -> Optional[str]:
         """Validate content field.
 
-        Content is required for text and markdown messages, optional for others.
+        Content is required for text, markdown and markdown_v2 messages, optional for others.
         """
         msg_type = info.data.get("msg_type")
-        if msg_type in (MessageType.TEXT, MessageType.MARKDOWN) and not v:
+        if msg_type in (MessageType.TEXT, MessageType.MARKDOWN, MessageType.MARKDOWN_V2) and not v:
             raise NotificationError("content is required for text and markdown messages")
         return v
 
