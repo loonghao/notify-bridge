@@ -47,6 +47,7 @@ class WeComSchema(WebhookSchema):
         media_path: Path to media file for file/voice message
         articles: List of articles
         color_map: Custom color mapping for markdown messages
+        upload_media_type: Media type for upload_media message (file/voice)
     """
 
     webhook_url: str = Field(..., description="Webhook URL", alias="base_url")
@@ -61,6 +62,9 @@ class WeComSchema(WebhookSchema):
     articles: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="List of articles")
     color_map: Optional[Dict[str, str]] = Field(
         default_factory=dict, description="Custom color mapping for markdown messages"
+    )
+    upload_media_type: Optional[str] = Field(
+        "file", description="Media type for upload_media message (file/voice)"
     )
 
     @field_validator("content")
@@ -94,6 +98,7 @@ class WeComNotifier(BaseNotifier):
         MessageType.NEWS,
         MessageType.FILE,  #
         MessageType.VOICE,  #
+        MessageType.UPLOAD_MEDIA,  # Not officially supported by WeCom webhook API, exposed for convenience
     }
 
     def __init__(self, config: Optional[HTTPClientConfig] = None) -> None:
@@ -432,6 +437,35 @@ class WeComNotifier(BaseNotifier):
 
         return {"msgtype": "voice", "voice": {"media_id": media_id}}
 
+    def _build_upload_media_payload(self, notification: WeComSchema) -> Dict[str, Any]:
+        """Build upload_media payload.
+
+        Note: This is NOT an official WeCom webhook message type.
+        This message type is exposed for convenience to allow direct access to the
+        upload_media API endpoint. It uploads a media file and returns the media_id.
+
+        Official documentation:
+        https://developer.work.weixin.qq.com/document/path/91770#%E6%96%87%E4%BB%B6%E4%B8%8A%E4%BC%A0%E6%8E%A5%E5%8F%A3
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Upload media response with media_id.
+
+        Raises:
+            NotificationError: If media_path is missing or upload fails.
+        """
+        if not notification.media_path:
+            raise NotificationError("media_path is required for upload_media message")
+
+        media_type = notification.upload_media_type or "file"
+        if media_type not in ("file", "voice"):
+            raise NotificationError(f"Invalid upload_media_type: {media_type}. Must be 'file' or 'voice'")
+
+        media_id = self._upload_media(notification.media_path, media_type)
+        return {"media_id": media_id, "type": media_type}
+
     def assemble_data(self, data: WeComSchema) -> Dict[str, Any]:
         """Assemble data data.
 
@@ -443,6 +477,10 @@ class WeComNotifier(BaseNotifier):
         """
         if not isinstance(data, WeComSchema):
             raise NotificationError("data must be a WeComSchema instance")
+
+        # For UPLOAD_MEDIA, return the upload result directly without msgtype
+        if data.msg_type == MessageType.UPLOAD_MEDIA:
+            return self._build_upload_media_payload(data)
 
         # For MARKDOWN_V2, the msgtype should still be "markdown"
         msgtype = "markdown" if data.msg_type == MessageType.MARKDOWN_V2 else data.msg_type

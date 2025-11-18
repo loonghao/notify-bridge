@@ -45,6 +45,7 @@ def test_wecom_notifier_initialization():
     assert MessageType.MARKDOWN_V2 in notifier.supported_types
     assert MessageType.IMAGE in notifier.supported_types
     assert MessageType.NEWS in notifier.supported_types
+    assert MessageType.UPLOAD_MEDIA in notifier.supported_types
 
 
 def test_build_text_payload():
@@ -441,3 +442,60 @@ def test_markdown_v2_preserves_all_formatting():
         assert payload["markdown"]["content"] == expected_content
         # msgtype should be "markdown" not "markdown_v2"
         assert payload["msgtype"] == "markdown"
+
+
+def test_build_upload_media_payload():
+    """Test building upload_media payload.
+
+    Note: UPLOAD_MEDIA is not an official WeCom webhook message type.
+    It's exposed for convenience to access the upload_media API.
+    """
+    notifier = WeComNotifier()
+
+    # Mock upload_media method
+    original_upload_media = notifier._upload_media
+    try:
+        notifier._upload_media = lambda file_path, media_type: f"test_media_id_{media_type}"
+
+        # Test upload_media with default type (file)
+        notification = WeComSchema(
+            webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+            msg_type="upload_media",
+            media_path="test.pdf",
+        )
+        payload = notifier.assemble_data(notification)
+        assert payload["media_id"] == "test_media_id_file"
+        assert payload["type"] == "file"
+        assert "msgtype" not in payload  # upload_media doesn't use msgtype
+
+        # Test upload_media with voice type
+        notification = WeComSchema(
+            webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+            msg_type="upload_media",
+            media_path="test.amr",
+            upload_media_type="voice",
+        )
+        payload = notifier.assemble_data(notification)
+        assert payload["media_id"] == "test_media_id_voice"
+        assert payload["type"] == "voice"
+
+        # Test upload_media without media_path should raise error
+        with pytest.raises(NotificationError, match="media_path is required"):
+            notification = WeComSchema(
+                webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+                msg_type="upload_media",
+            )
+            notifier.assemble_data(notification)
+
+        # Test upload_media with invalid type should raise error
+        with pytest.raises(NotificationError, match="Invalid upload_media_type"):
+            notification = WeComSchema(
+                webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+                msg_type="upload_media",
+                media_path="test.pdf",
+                upload_media_type="invalid",
+            )
+            notifier.assemble_data(notification)
+
+    finally:
+        notifier._upload_media = original_upload_media
