@@ -2,11 +2,11 @@
 
 # Import third-party modules
 import pytest
-from pydantic import ValidationError
 
 # Import local modules
 from notify_bridge.components import MessageType
 from notify_bridge.notifiers.github import GitHubNotifier, GitHubSchema
+from pydantic import ValidationError
 
 
 def test_github_schema_validation():

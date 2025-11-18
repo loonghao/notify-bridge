@@ -8,9 +8,10 @@ import asyncio
 import os
 from pathlib import Path
 
+from notify_bridge.exceptions import NotificationError
+
 # Import local modules
 from notify_bridge import NotifyBridge
-from notify_bridge.exceptions import NotificationError
 
 
 def test_text_message(bridge: NotifyBridge, url: str) -> None:

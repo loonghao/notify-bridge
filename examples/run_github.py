@@ -4,9 +4,10 @@
 import asyncio
 import os
 
+from notify_bridge.components import NotificationError
+
 # Import local modules
 from notify_bridge import NotifyBridge
-from notify_bridge.components import NotificationError
 
 
 def test_text_issue(bridge: NotifyBridge, owner: str, repo: str, token: str) -> None:
