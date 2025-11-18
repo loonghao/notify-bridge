@@ -8,7 +8,7 @@ import base64
 import logging
 import re
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, Union
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
 
 # Import third-party modules
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
@@ -39,9 +39,7 @@ class TemplateCardSource(BaseModel):
 
     icon_url: Optional[str] = Field(None, description="Icon URL")
     desc: Optional[str] = Field(None, description="Description, max 13 characters")
-    desc_color: Optional[int] = Field(
-        None, description="Description color: 0(grey), 1(black), 2(red), 3(green)"
-    )
+    desc_color: Optional[int] = Field(None, description="Description color: 0(grey), 1(black), 2(red), 3(green)")
 
     class Config:
         """Pydantic model configuration."""
@@ -676,9 +674,7 @@ class WeComNotifier(BaseNotifier):
         """
         return [self._convert_to_dict(item) for item in items]
 
-    def _add_template_card_field(
-        self, template_card: Dict[str, Any], field_name: str, field_value: Any
-    ) -> None:
+    def _add_template_card_field(self, template_card: Dict[str, Any], field_name: str, field_value: Any) -> None:
         """Add a field to template card if provided.
 
         Args:
@@ -735,7 +731,7 @@ class WeComNotifier(BaseNotifier):
 
         return {"msgtype": "template_card", "template_card": template_card}
 
-    def _get_payload_builder(self, msg_type: MessageType):
+    def _get_payload_builder(self, msg_type: MessageType) -> Callable[[WeComSchema], Dict[str, Any]]:
         """Get the appropriate payload builder for the message type.
 
         Args:
@@ -747,7 +743,7 @@ class WeComNotifier(BaseNotifier):
         Raises:
             NotificationError: If message type is not supported.
         """
-        builders = {
+        builders: Dict[MessageType, Callable[[WeComSchema], Dict[str, Any]]] = {
             MessageType.TEXT: self._build_text_payload,
             MessageType.MARKDOWN: self._build_markdown_payload,
             MessageType.MARKDOWN_V2: self._build_markdown_v2_payload,
@@ -784,7 +780,8 @@ class WeComNotifier(BaseNotifier):
         payload = {"msgtype": msgtype}
 
         # Get the appropriate builder and build the payload
-        builder = self._get_payload_builder(data.msg_type)
+        msg_type_enum = MessageType(data.msg_type)
+        builder = self._get_payload_builder(msg_type_enum)
         payload.update(builder(data))
 
         return payload

@@ -654,7 +654,10 @@ def test_build_template_card_payload_full():
 
     assert payload["msgtype"] == "template_card"
     assert payload["template_card"]["card_type"] == "text_notice"
-    assert payload["template_card"]["source"]["icon_url"] == "https://wework.qpic.cn/wwpic/252813_jOfDHtcISzuodLa_1629280209/0"
+    assert (
+        payload["template_card"]["source"]["icon_url"]
+        == "https://wework.qpic.cn/wwpic/252813_jOfDHtcISzuodLa_1629280209/0"
+    )
     assert payload["template_card"]["source"]["desc"] == "Enterprise WeChat"
     assert payload["template_card"]["source"]["desc_color"] == 0
     assert payload["template_card"]["main_title"]["title"] == "Welcome to Enterprise WeChat"
@@ -837,11 +840,17 @@ def test_build_template_card_news_notice_payload():
     assert payload["template_card"]["card_type"] == "news_notice"
     assert payload["template_card"]["source"]["desc"] == "Enterprise WeChat"
     assert payload["template_card"]["main_title"]["title"] == "Welcome to Enterprise WeChat"
-    assert payload["template_card"]["card_image"]["url"] == "https://wework.qpic.cn/wwpic/354393_4zpkKXd7SrGMvfg_1629280616/0"
+    assert (
+        payload["template_card"]["card_image"]["url"]
+        == "https://wework.qpic.cn/wwpic/354393_4zpkKXd7SrGMvfg_1629280616/0"
+    )
     assert payload["template_card"]["card_image"]["aspect_ratio"] == 2.25
     assert payload["template_card"]["image_text_area"]["type"] == 1
     assert payload["template_card"]["image_text_area"]["title"] == "Welcome to Enterprise WeChat"
-    assert payload["template_card"]["image_text_area"]["image_url"] == "https://wework.qpic.cn/wwpic/354393_4zpkKXd7SrGMvfg_1629280616/0"
+    assert (
+        payload["template_card"]["image_text_area"]["image_url"]
+        == "https://wework.qpic.cn/wwpic/354393_4zpkKXd7SrGMvfg_1629280616/0"
+    )
     assert len(payload["template_card"]["vertical_content_list"]) == 1
     assert payload["template_card"]["vertical_content_list"][0]["title"] == "Surprise red packets waiting for you"
     assert len(payload["template_card"]["horizontal_content_list"]) == 2
