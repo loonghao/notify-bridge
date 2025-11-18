@@ -24,6 +24,7 @@ class MessageType(str, Enum):
     VOICE = "voice"
     INTERACTIVE = "interactive"
     UPLOAD_MEDIA = "upload_media"
+    TEMPLATE_CARD = "template_card"
 
 
 class NotifyLevel(str, Enum):

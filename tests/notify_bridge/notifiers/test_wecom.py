@@ -9,7 +9,21 @@ import pytest
 # Import local modules
 from notify_bridge.components import MessageType
 from notify_bridge.exceptions import NotificationError
-from notify_bridge.notifiers.wecom import Article, WeComNotifier, WeComSchema
+from notify_bridge.notifiers.wecom import (
+    Article,
+    TemplateCardAction,
+    TemplateCardEmphasisContent,
+    TemplateCardHorizontalContentItem,
+    TemplateCardImage,
+    TemplateCardImageTextArea,
+    TemplateCardJumpItem,
+    TemplateCardMainTitle,
+    TemplateCardQuoteArea,
+    TemplateCardSource,
+    TemplateCardVerticalContentItem,
+    WeComNotifier,
+    WeComSchema,
+)
 
 
 def test_article_schema():
@@ -499,3 +513,397 @@ def test_build_upload_media_payload():
 
     finally:
         notifier._upload_media = original_upload_media
+
+
+def test_template_card_schemas():
+    """Test template card schema classes."""
+    # Test TemplateCardSource
+    source = TemplateCardSource(
+        icon_url="https://example.com/icon.png",
+        desc="Test Source",
+        desc_color=1,
+    )
+    assert source.icon_url == "https://example.com/icon.png"
+    assert source.desc == "Test Source"
+    assert source.desc_color == 1
+
+    # Test TemplateCardMainTitle
+    main_title = TemplateCardMainTitle(
+        title="Main Title",
+        desc="Main Description",
+    )
+    assert main_title.title == "Main Title"
+    assert main_title.desc == "Main Description"
+
+    # Test TemplateCardEmphasisContent
+    emphasis = TemplateCardEmphasisContent(
+        title="100",
+        desc="Data Meaning",
+    )
+    assert emphasis.title == "100"
+    assert emphasis.desc == "Data Meaning"
+
+    # Test TemplateCardQuoteArea
+    quote = TemplateCardQuoteArea(
+        type=1,
+        url="https://example.com",
+        title="Quote Title",
+        quote_text="Quote Text",
+    )
+    assert quote.type == 1
+    assert quote.url == "https://example.com"
+    assert quote.title == "Quote Title"
+    assert quote.quote_text == "Quote Text"
+
+    # Test TemplateCardHorizontalContentItem
+    horizontal_item = TemplateCardHorizontalContentItem(
+        keyname="Inviter",
+        value="Zhang San",
+    )
+    assert horizontal_item.keyname == "Inviter"
+    assert horizontal_item.value == "Zhang San"
+
+    # Test TemplateCardJumpItem
+    jump_item = TemplateCardJumpItem(
+        type=1,
+        url="https://example.com",
+        title="Jump Title",
+    )
+    assert jump_item.type == 1
+    assert jump_item.url == "https://example.com"
+    assert jump_item.title == "Jump Title"
+
+    # Test TemplateCardAction
+    action = TemplateCardAction(
+        type=1,
+        url="https://example.com",
+    )
+    assert action.type == 1
+    assert action.url == "https://example.com"
+
+
+def test_build_template_card_payload_minimal():
+    """Test template card message payload building with minimal fields."""
+    notifier = WeComNotifier()
+
+    # Test minimal template card
+    notification = WeComSchema(
+        webhook_url="https://test.url",
+        msg_type="template_card",
+        template_card_type="text_notice",
+    )
+    payload = notifier.assemble_data(notification)
+    assert payload["msgtype"] == "template_card"
+    assert payload["template_card"]["card_type"] == "text_notice"
+
+
+def test_build_template_card_payload_full():
+    """Test template card message payload building with all fields."""
+    notifier = WeComNotifier()
+
+    # Test full template card with all fields
+    notification = WeComSchema(
+        webhook_url="https://test.url",
+        msg_type="template_card",
+        template_card_type="text_notice",
+        template_card_source={
+            "icon_url": "https://wework.qpic.cn/wwpic/252813_jOfDHtcISzuodLa_1629280209/0",
+            "desc": "Enterprise WeChat",
+            "desc_color": 0,
+        },
+        template_card_main_title={
+            "title": "Welcome to Enterprise WeChat",
+            "desc": "Your friend is inviting you to join Enterprise WeChat",
+        },
+        template_card_emphasis_content={
+            "title": "100",
+            "desc": "Data Meaning",
+        },
+        template_card_quote_area={
+            "type": 1,
+            "url": "https://work.weixin.qq.com/?from=openApi",
+            "title": "Quote Title",
+            "quote_text": "Jack: Enterprise WeChat is really good~\nBalian: Super good software!",
+        },
+        template_card_sub_title_text="Download Enterprise WeChat to grab red packets!",
+        template_card_horizontal_content_list=[
+            {
+                "keyname": "Inviter",
+                "value": "Zhang San",
+            },
+            {
+                "keyname": "Official Website",
+                "value": "Click to visit",
+                "type": 1,
+                "url": "https://work.weixin.qq.com/?from=openApi",
+            },
+        ],
+        template_card_jump_list=[
+            {
+                "type": 1,
+                "url": "https://work.weixin.qq.com/?from=openApi",
+                "title": "Enterprise WeChat Official Website",
+            },
+        ],
+        template_card_card_action={
+            "type": 1,
+            "url": "https://work.weixin.qq.com/?from=openApi",
+        },
+    )
+    payload = notifier.assemble_data(notification)
+
+    assert payload["msgtype"] == "template_card"
+    assert payload["template_card"]["card_type"] == "text_notice"
+    assert payload["template_card"]["source"]["icon_url"] == "https://wework.qpic.cn/wwpic/252813_jOfDHtcISzuodLa_1629280209/0"
+    assert payload["template_card"]["source"]["desc"] == "Enterprise WeChat"
+    assert payload["template_card"]["source"]["desc_color"] == 0
+    assert payload["template_card"]["main_title"]["title"] == "Welcome to Enterprise WeChat"
+    assert payload["template_card"]["main_title"]["desc"] == "Your friend is inviting you to join Enterprise WeChat"
+    assert payload["template_card"]["emphasis_content"]["title"] == "100"
+    assert payload["template_card"]["emphasis_content"]["desc"] == "Data Meaning"
+    assert payload["template_card"]["quote_area"]["type"] == 1
+    assert payload["template_card"]["quote_area"]["url"] == "https://work.weixin.qq.com/?from=openApi"
+    assert payload["template_card"]["sub_title_text"] == "Download Enterprise WeChat to grab red packets!"
+    assert len(payload["template_card"]["horizontal_content_list"]) == 2
+    assert payload["template_card"]["horizontal_content_list"][0]["keyname"] == "Inviter"
+    assert payload["template_card"]["horizontal_content_list"][0]["value"] == "Zhang San"
+    assert payload["template_card"]["horizontal_content_list"][1]["type"] == 1
+    assert len(payload["template_card"]["jump_list"]) == 1
+    assert payload["template_card"]["jump_list"][0]["title"] == "Enterprise WeChat Official Website"
+    assert payload["template_card"]["card_action"]["type"] == 1
+    assert payload["template_card"]["card_action"]["url"] == "https://work.weixin.qq.com/?from=openApi"
+
+
+def test_build_template_card_payload_with_pydantic_models():
+    """Test template card message payload building with Pydantic models."""
+    notifier = WeComNotifier()
+
+    # Test template card with Pydantic model instances
+    notification = WeComSchema(
+        webhook_url="https://test.url",
+        msg_type="template_card",
+        template_card_type="text_notice",
+        template_card_source=TemplateCardSource(
+            icon_url="https://example.com/icon.png",
+            desc="Test Source",
+            desc_color=1,
+        ),
+        template_card_main_title=TemplateCardMainTitle(
+            title="Test Title",
+            desc="Test Description",
+        ),
+        template_card_emphasis_content=TemplateCardEmphasisContent(
+            title="50",
+            desc="Test Data",
+        ),
+        template_card_horizontal_content_list=[
+            TemplateCardHorizontalContentItem(
+                keyname="Key1",
+                value="Value1",
+            ),
+        ],
+        template_card_jump_list=[
+            TemplateCardJumpItem(
+                type=1,
+                url="https://example.com",
+                title="Jump Link",
+            ),
+        ],
+        template_card_card_action=TemplateCardAction(
+            type=1,
+            url="https://example.com/action",
+        ),
+    )
+    payload = notifier.assemble_data(notification)
+
+    assert payload["msgtype"] == "template_card"
+    assert payload["template_card"]["card_type"] == "text_notice"
+    assert payload["template_card"]["source"]["icon_url"] == "https://example.com/icon.png"
+    assert payload["template_card"]["main_title"]["title"] == "Test Title"
+    assert payload["template_card"]["emphasis_content"]["title"] == "50"
+    assert len(payload["template_card"]["horizontal_content_list"]) == 1
+    assert payload["template_card"]["horizontal_content_list"][0]["keyname"] == "Key1"
+    assert len(payload["template_card"]["jump_list"]) == 1
+    assert payload["template_card"]["card_action"]["url"] == "https://example.com/action"
+
+
+def test_wecom_notifier_supports_template_card():
+    """Test that WeComNotifier supports TEMPLATE_CARD message type."""
+    notifier = WeComNotifier()
+    assert MessageType.TEMPLATE_CARD in notifier.supported_types
+
+
+def test_template_card_news_notice_schemas():
+    """Test template card news_notice schema classes."""
+    # Test TemplateCardImage
+    card_image = TemplateCardImage(
+        url="https://example.com/image.png",
+        aspect_ratio=2.25,
+    )
+    assert card_image.url == "https://example.com/image.png"
+    assert card_image.aspect_ratio == 2.25
+
+    # Test TemplateCardImageTextArea
+    image_text_area = TemplateCardImageTextArea(
+        type=1,
+        url="https://example.com",
+        title="Image Text Title",
+        desc="Image Text Description",
+        image_url="https://example.com/image.png",
+    )
+    assert image_text_area.type == 1
+    assert image_text_area.url == "https://example.com"
+    assert image_text_area.title == "Image Text Title"
+    assert image_text_area.desc == "Image Text Description"
+    assert image_text_area.image_url == "https://example.com/image.png"
+
+    # Test TemplateCardVerticalContentItem
+    vertical_item = TemplateCardVerticalContentItem(
+        title="Vertical Title",
+        desc="Vertical Description",
+    )
+    assert vertical_item.title == "Vertical Title"
+    assert vertical_item.desc == "Vertical Description"
+
+
+def test_build_template_card_news_notice_payload():
+    """Test template card news_notice message payload building."""
+    notifier = WeComNotifier()
+
+    # Test news_notice template card with all fields
+    notification = WeComSchema(
+        webhook_url="https://test.url",
+        msg_type="template_card",
+        template_card_type="news_notice",
+        template_card_source={
+            "icon_url": "https://wework.qpic.cn/wwpic/252813_jOfDHtcISzuodLa_1629280209/0",
+            "desc": "Enterprise WeChat",
+            "desc_color": 0,
+        },
+        template_card_main_title={
+            "title": "Welcome to Enterprise WeChat",
+            "desc": "Your friend is inviting you to join Enterprise WeChat",
+        },
+        template_card_image={
+            "url": "https://wework.qpic.cn/wwpic/354393_4zpkKXd7SrGMvfg_1629280616/0",
+            "aspect_ratio": 2.25,
+        },
+        template_card_image_text_area={
+            "type": 1,
+            "url": "https://work.weixin.qq.com",
+            "title": "Welcome to Enterprise WeChat",
+            "desc": "Your friend is inviting you to join Enterprise WeChat",
+            "image_url": "https://wework.qpic.cn/wwpic/354393_4zpkKXd7SrGMvfg_1629280616/0",
+        },
+        template_card_quote_area={
+            "type": 1,
+            "url": "https://work.weixin.qq.com/?from=openApi",
+            "title": "Quote Title",
+            "quote_text": "Jack: Enterprise WeChat is really good~\nBalian: Super good software!",
+        },
+        template_card_vertical_content_list=[
+            {
+                "title": "Surprise red packets waiting for you",
+                "desc": "Download Enterprise WeChat to grab red packets!",
+            },
+        ],
+        template_card_horizontal_content_list=[
+            {
+                "keyname": "Inviter",
+                "value": "Zhang San",
+            },
+            {
+                "keyname": "Official Website",
+                "value": "Click to visit",
+                "type": 1,
+                "url": "https://work.weixin.qq.com/?from=openApi",
+            },
+        ],
+        template_card_jump_list=[
+            {
+                "type": 1,
+                "url": "https://work.weixin.qq.com/?from=openApi",
+                "title": "Enterprise WeChat Official Website",
+            },
+        ],
+        template_card_card_action={
+            "type": 1,
+            "url": "https://work.weixin.qq.com/?from=openApi",
+        },
+    )
+    payload = notifier.assemble_data(notification)
+
+    assert payload["msgtype"] == "template_card"
+    assert payload["template_card"]["card_type"] == "news_notice"
+    assert payload["template_card"]["source"]["desc"] == "Enterprise WeChat"
+    assert payload["template_card"]["main_title"]["title"] == "Welcome to Enterprise WeChat"
+    assert payload["template_card"]["card_image"]["url"] == "https://wework.qpic.cn/wwpic/354393_4zpkKXd7SrGMvfg_1629280616/0"
+    assert payload["template_card"]["card_image"]["aspect_ratio"] == 2.25
+    assert payload["template_card"]["image_text_area"]["type"] == 1
+    assert payload["template_card"]["image_text_area"]["title"] == "Welcome to Enterprise WeChat"
+    assert payload["template_card"]["image_text_area"]["image_url"] == "https://wework.qpic.cn/wwpic/354393_4zpkKXd7SrGMvfg_1629280616/0"
+    assert len(payload["template_card"]["vertical_content_list"]) == 1
+    assert payload["template_card"]["vertical_content_list"][0]["title"] == "Surprise red packets waiting for you"
+    assert len(payload["template_card"]["horizontal_content_list"]) == 2
+    assert len(payload["template_card"]["jump_list"]) == 1
+
+
+def test_build_template_card_news_notice_with_pydantic_models():
+    """Test template card news_notice message payload building with Pydantic models."""
+    notifier = WeComNotifier()
+
+    # Test news_notice template card with Pydantic model instances
+    notification = WeComSchema(
+        webhook_url="https://test.url",
+        msg_type="template_card",
+        template_card_type="news_notice",
+        template_card_source=TemplateCardSource(
+            icon_url="https://example.com/icon.png",
+            desc="Test Source",
+            desc_color=1,
+        ),
+        template_card_main_title=TemplateCardMainTitle(
+            title="Test Title",
+            desc="Test Description",
+        ),
+        template_card_image=TemplateCardImage(
+            url="https://example.com/image.png",
+            aspect_ratio=1.5,
+        ),
+        template_card_image_text_area=TemplateCardImageTextArea(
+            type=1,
+            url="https://example.com",
+            title="Image Text Title",
+            desc="Image Text Description",
+            image_url="https://example.com/image.png",
+        ),
+        template_card_vertical_content_list=[
+            TemplateCardVerticalContentItem(
+                title="Vertical Title 1",
+                desc="Vertical Description 1",
+            ),
+            TemplateCardVerticalContentItem(
+                title="Vertical Title 2",
+                desc="Vertical Description 2",
+            ),
+        ],
+        template_card_horizontal_content_list=[
+            TemplateCardHorizontalContentItem(
+                keyname="Key1",
+                value="Value1",
+            ),
+        ],
+    )
+    payload = notifier.assemble_data(notification)
+
+    assert payload["msgtype"] == "template_card"
+    assert payload["template_card"]["card_type"] == "news_notice"
+    assert payload["template_card"]["source"]["icon_url"] == "https://example.com/icon.png"
+    assert payload["template_card"]["main_title"]["title"] == "Test Title"
+    assert payload["template_card"]["card_image"]["url"] == "https://example.com/image.png"
+    assert payload["template_card"]["card_image"]["aspect_ratio"] == 1.5
+    assert payload["template_card"]["image_text_area"]["title"] == "Image Text Title"
+    assert len(payload["template_card"]["vertical_content_list"]) == 2
+    assert payload["template_card"]["vertical_content_list"][0]["title"] == "Vertical Title 1"
+    assert payload["template_card"]["vertical_content_list"][1]["title"] == "Vertical Title 2"
+    assert len(payload["template_card"]["horizontal_content_list"]) == 1
