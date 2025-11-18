@@ -5,9 +5,10 @@ import asyncio
 import os
 from typing import Optional
 
+from notify_bridge.components import NotificationError
+
 # Import local modules
 from notify_bridge import NotifyBridge
-from notify_bridge.components import NotificationError
 
 
 def test_text_message(bridge: NotifyBridge, base_url: str, token: Optional[str] = None) -> None:

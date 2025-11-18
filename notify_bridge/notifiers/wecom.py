@@ -63,9 +63,7 @@ class WeComSchema(WebhookSchema):
     color_map: Optional[Dict[str, str]] = Field(
         default_factory=dict, description="Custom color mapping for markdown messages"
     )
-    upload_media_type: Optional[str] = Field(
-        "file", description="Media type for upload_media message (file/voice)"
-    )
+    upload_media_type: Optional[str] = Field("file", description="Media type for upload_media message (file/voice)")
 
     @field_validator("content")
     @classmethod
