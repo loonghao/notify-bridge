@@ -34,6 +34,147 @@ class Article(BaseModel):
         populate_by_name = True
 
 
+class TemplateCardSource(BaseModel):
+    """Source schema for template card."""
+
+    icon_url: Optional[str] = Field(None, description="Icon URL")
+    desc: Optional[str] = Field(None, description="Description, max 13 characters")
+    desc_color: Optional[int] = Field(
+        None, description="Description color: 0(grey), 1(black), 2(red), 3(green)"
+    )
+
+    class Config:
+        """Pydantic model configuration."""
+
+        populate_by_name = True
+
+
+class TemplateCardMainTitle(BaseModel):
+    """Main title schema for template card."""
+
+    title: Optional[str] = Field(None, description="Title, max 26 characters")
+    desc: Optional[str] = Field(None, description="Description, max 30 characters")
+
+    class Config:
+        """Pydantic model configuration."""
+
+        populate_by_name = True
+
+
+class TemplateCardEmphasisContent(BaseModel):
+    """Emphasis content schema for template card."""
+
+    title: Optional[str] = Field(None, description="Title, max 10 characters")
+    desc: Optional[str] = Field(None, description="Description, max 15 characters")
+
+    class Config:
+        """Pydantic model configuration."""
+
+        populate_by_name = True
+
+
+class TemplateCardQuoteArea(BaseModel):
+    """Quote area schema for template card."""
+
+    type: Optional[int] = Field(None, description="Quote type: 0(no click), 1(url), 2(mini program)")
+    url: Optional[str] = Field(None, description="Click URL, required when type=1")
+    appid: Optional[str] = Field(None, description="Mini program appid, required when type=2")
+    pagepath: Optional[str] = Field(None, description="Mini program pagepath, required when type=2")
+    title: Optional[str] = Field(None, description="Quote title")
+    quote_text: Optional[str] = Field(None, description="Quote text")
+
+    class Config:
+        """Pydantic model configuration."""
+
+        populate_by_name = True
+
+
+class TemplateCardHorizontalContentItem(BaseModel):
+    """Horizontal content item schema for template card."""
+
+    keyname: str = Field(..., description="Key name, max 5 characters")
+    value: Optional[str] = Field(None, description="Value, max 26 characters (including file type)")
+    type: Optional[int] = Field(None, description="Type: 1(url), 2(file), 3(userid)")
+    url: Optional[str] = Field(None, description="Click URL, required when type=1")
+    media_id: Optional[str] = Field(None, description="Media ID, required when type=2")
+    userid: Optional[str] = Field(None, description="User ID, required when type=3")
+
+    class Config:
+        """Pydantic model configuration."""
+
+        populate_by_name = True
+
+
+class TemplateCardJumpItem(BaseModel):
+    """Jump item schema for template card."""
+
+    type: int = Field(..., description="Jump type: 1(url), 2(mini program)")
+    title: str = Field(..., description="Jump title, max 13 characters")
+    url: Optional[str] = Field(None, description="Jump URL, required when type=1")
+    appid: Optional[str] = Field(None, description="Mini program appid, required when type=2")
+    pagepath: Optional[str] = Field(None, description="Mini program pagepath, required when type=2")
+
+    class Config:
+        """Pydantic model configuration."""
+
+        populate_by_name = True
+
+
+class TemplateCardAction(BaseModel):
+    """Card action schema for template card."""
+
+    type: int = Field(..., description="Action type: 1(url), 2(mini program)")
+    url: Optional[str] = Field(None, description="Action URL, required when type=1")
+    appid: Optional[str] = Field(None, description="Mini program appid, required when type=2")
+    pagepath: Optional[str] = Field(None, description="Mini program pagepath, required when type=2")
+
+    class Config:
+        """Pydantic model configuration."""
+
+        populate_by_name = True
+
+
+class TemplateCardImage(BaseModel):
+    """Card image schema for template card."""
+
+    url: str = Field(..., description="Image URL")
+    aspect_ratio: Optional[float] = Field(None, description="Image aspect ratio, default 2.25, max 1.3")
+
+    class Config:
+        """Pydantic model configuration."""
+
+        populate_by_name = True
+
+
+class TemplateCardImageTextArea(BaseModel):
+    """Image text area schema for template card."""
+
+    type: Optional[int] = Field(None, description="Type: 0(no click), 1(url), 2(mini program)")
+    url: Optional[str] = Field(None, description="Click URL, required when type=1")
+    appid: Optional[str] = Field(None, description="Mini program appid, required when type=2")
+    pagepath: Optional[str] = Field(None, description="Mini program pagepath, required when type=2")
+    title: Optional[str] = Field(None, description="Left and right style title")
+    desc: Optional[str] = Field(None, description="Left and right style description")
+    image_url: str = Field(..., description="Left and right style image URL")
+
+    class Config:
+        """Pydantic model configuration."""
+
+        populate_by_name = True
+
+
+class TemplateCardVerticalContentItem(BaseModel):
+    """Vertical content item schema for template card."""
+
+    title: str = Field(..., description="Secondary title, max 26 characters")
+    desc: Optional[str] = Field(None, description="Secondary description, max 112 characters")
+
+    class Config:
+        """Pydantic model configuration."""
+
+        populate_by_name = True
+
+
 class WeComSchema(WebhookSchema):
     """Schema for WeCom notifications.
 
@@ -48,6 +189,18 @@ class WeComSchema(WebhookSchema):
         articles: List of articles
         color_map: Custom color mapping for markdown messages
         upload_media_type: Media type for upload_media message (file/voice)
+        template_card_type: Template card type (text_notice/news_notice)
+        template_card_source: Template card source information
+        template_card_main_title: Template card main title
+        template_card_emphasis_content: Template card emphasis content (text_notice only)
+        template_card_quote_area: Template card quote area
+        template_card_sub_title_text: Template card sub title text (text_notice only)
+        template_card_horizontal_content_list: Template card horizontal content list
+        template_card_jump_list: Template card jump list
+        template_card_card_action: Template card action
+        template_card_image: Template card image (news_notice only)
+        template_card_image_text_area: Template card image text area (news_notice only)
+        template_card_vertical_content_list: Template card vertical content list (news_notice only)
     """
 
     webhook_url: str = Field(..., description="Webhook URL", alias="base_url")
@@ -64,6 +217,40 @@ class WeComSchema(WebhookSchema):
         default_factory=dict, description="Custom color mapping for markdown messages"
     )
     upload_media_type: Optional[str] = Field("file", description="Media type for upload_media message (file/voice)")
+    # Template card fields
+    template_card_type: Optional[str] = Field("text_notice", description="Template card type")
+    template_card_source: Optional[Union[Dict[str, Any], TemplateCardSource]] = Field(
+        None, description="Template card source"
+    )
+    template_card_main_title: Optional[Union[Dict[str, Any], TemplateCardMainTitle]] = Field(
+        None, description="Template card main title"
+    )
+    template_card_emphasis_content: Optional[Union[Dict[str, Any], TemplateCardEmphasisContent]] = Field(
+        None, description="Template card emphasis content"
+    )
+    template_card_quote_area: Optional[Union[Dict[str, Any], TemplateCardQuoteArea]] = Field(
+        None, description="Template card quote area"
+    )
+    template_card_sub_title_text: Optional[str] = Field(None, description="Template card sub title text, max 112 chars")
+    template_card_horizontal_content_list: Optional[List[Union[Dict[str, Any], TemplateCardHorizontalContentItem]]] = (
+        Field(None, description="Template card horizontal content list, max 6 items")
+    )
+    template_card_jump_list: Optional[List[Union[Dict[str, Any], TemplateCardJumpItem]]] = Field(
+        None, description="Template card jump list, max 3 items"
+    )
+    template_card_card_action: Optional[Union[Dict[str, Any], TemplateCardAction]] = Field(
+        None, description="Template card action"
+    )
+    # Template card fields for news_notice type
+    template_card_image: Optional[Union[Dict[str, Any], TemplateCardImage]] = Field(
+        None, description="Template card image (news_notice only)"
+    )
+    template_card_image_text_area: Optional[Union[Dict[str, Any], TemplateCardImageTextArea]] = Field(
+        None, description="Template card image text area (news_notice only)"
+    )
+    template_card_vertical_content_list: Optional[List[Union[Dict[str, Any], TemplateCardVerticalContentItem]]] = Field(
+        None, description="Template card vertical content list (news_notice only), max 4 items"
+    )
 
     @field_validator("content")
     @classmethod
@@ -97,6 +284,7 @@ class WeComNotifier(BaseNotifier):
         MessageType.FILE,  #
         MessageType.VOICE,  #
         MessageType.UPLOAD_MEDIA,  # Not officially supported by WeCom webhook API, exposed for convenience
+        MessageType.TEMPLATE_CARD,
     }
 
     def __init__(self, config: Optional[HTTPClientConfig] = None) -> None:
@@ -464,6 +652,117 @@ class WeComNotifier(BaseNotifier):
         media_id = self._upload_media(notification.media_path, media_type)
         return {"media_id": media_id, "type": media_type}
 
+    def _convert_to_dict(self, data: Union[Dict[str, Any], BaseModel]) -> Dict[str, Any]:
+        """Convert data to dictionary.
+
+        Args:
+            data: Data to convert (dict or BaseModel instance).
+
+        Returns:
+            Dict[str, Any]: Converted dictionary.
+        """
+        if isinstance(data, dict):
+            return data
+        return data.model_dump(exclude_none=True)
+
+    def _convert_list_to_dict(self, items: List[Union[Dict[str, Any], BaseModel]]) -> List[Dict[str, Any]]:
+        """Convert list of items to list of dictionaries.
+
+        Args:
+            items: List of items to convert.
+
+        Returns:
+            List[Dict[str, Any]]: List of dictionaries.
+        """
+        return [self._convert_to_dict(item) for item in items]
+
+    def _add_template_card_field(
+        self, template_card: Dict[str, Any], field_name: str, field_value: Any
+    ) -> None:
+        """Add a field to template card if provided.
+
+        Args:
+            template_card: Template card dictionary.
+            field_name: Field name.
+            field_value: Field value.
+        """
+        if field_value is None:
+            return
+
+        if isinstance(field_value, (str, int, float)):
+            template_card[field_name] = field_value
+        elif isinstance(field_value, list):
+            converted_list = self._convert_list_to_dict(field_value)
+            if converted_list:
+                template_card[field_name] = converted_list
+        else:
+            converted_data = self._convert_to_dict(field_value)
+            if converted_data:
+                template_card[field_name] = converted_data
+
+    def _build_template_card_payload(self, notification: WeComSchema) -> Dict[str, Any]:
+        """Build template card message payload.
+
+        Args:
+            notification: Notification data.
+
+        Returns:
+            Dict[str, Any]: Template card message payload.
+
+        Raises:
+            NotificationError: If required fields are missing.
+        """
+        template_card: Dict[str, Any] = {
+            "card_type": notification.template_card_type or "text_notice",
+        }
+
+        # Add all template card fields
+        self._add_template_card_field(template_card, "source", notification.template_card_source)
+        self._add_template_card_field(template_card, "main_title", notification.template_card_main_title)
+        self._add_template_card_field(template_card, "emphasis_content", notification.template_card_emphasis_content)
+        self._add_template_card_field(template_card, "quote_area", notification.template_card_quote_area)
+        self._add_template_card_field(template_card, "sub_title_text", notification.template_card_sub_title_text)
+        self._add_template_card_field(
+            template_card, "horizontal_content_list", notification.template_card_horizontal_content_list
+        )
+        self._add_template_card_field(template_card, "jump_list", notification.template_card_jump_list)
+        self._add_template_card_field(template_card, "card_action", notification.template_card_card_action)
+        self._add_template_card_field(template_card, "card_image", notification.template_card_image)
+        self._add_template_card_field(template_card, "image_text_area", notification.template_card_image_text_area)
+        self._add_template_card_field(
+            template_card, "vertical_content_list", notification.template_card_vertical_content_list
+        )
+
+        return {"msgtype": "template_card", "template_card": template_card}
+
+    def _get_payload_builder(self, msg_type: MessageType):
+        """Get the appropriate payload builder for the message type.
+
+        Args:
+            msg_type: Message type.
+
+        Returns:
+            Callable: Payload builder function.
+
+        Raises:
+            NotificationError: If message type is not supported.
+        """
+        builders = {
+            MessageType.TEXT: self._build_text_payload,
+            MessageType.MARKDOWN: self._build_markdown_payload,
+            MessageType.MARKDOWN_V2: self._build_markdown_v2_payload,
+            MessageType.IMAGE: self._build_image_payload,
+            MessageType.NEWS: self._build_news_payload,
+            MessageType.FILE: self._build_file_payload,
+            MessageType.VOICE: self._build_voice_payload,
+            MessageType.TEMPLATE_CARD: self._build_template_card_payload,
+        }
+
+        if msg_type not in builders:
+            raise NotificationError(f"Unsupported message type: {msg_type}")
+
+        return builders[msg_type]
+
     def assemble_data(self, data: WeComSchema) -> Dict[str, Any]:
         """Assemble data data.
 
@@ -483,21 +782,9 @@ class WeComNotifier(BaseNotifier):
         # For MARKDOWN_V2, the msgtype should still be "markdown"
         msgtype = "markdown" if data.msg_type == MessageType.MARKDOWN_V2 else data.msg_type
         payload = {"msgtype": msgtype}
-        if data.msg_type == MessageType.TEXT:
-            payload.update(self._build_text_payload(data))
-        elif data.msg_type == MessageType.MARKDOWN:
-            payload.update(self._build_markdown_payload(data))
-        elif data.msg_type == MessageType.MARKDOWN_V2:
-            payload.update(self._build_markdown_v2_payload(data))
-        elif data.msg_type == MessageType.IMAGE:
-            payload.update(self._build_image_payload(data))
-        elif data.msg_type == MessageType.NEWS:
-            payload.update(self._build_news_payload(data))
-        elif data.msg_type == MessageType.FILE:
-            payload.update(self._build_file_payload(data))
-        elif data.msg_type == MessageType.VOICE:
-            payload.update(self._build_voice_payload(data))
-        else:
-            raise NotificationError(f"Unsupported message type: {data.msg_type}")
+
+        # Get the appropriate builder and build the payload
+        builder = self._get_payload_builder(data.msg_type)
+        payload.update(builder(data))
 
         return payload
