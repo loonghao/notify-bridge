@@ -23,6 +23,7 @@ class MessageType(str, Enum):
     FILE = "file"
     VOICE = "voice"
     INTERACTIVE = "interactive"
+    UPLOAD_MEDIA = "upload_media"
 
 
 class NotifyLevel(str, Enum):
