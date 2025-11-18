@@ -472,42 +472,50 @@ def test_build_upload_media_payload():
         notifier._upload_media = lambda file_path, media_type: f"test_media_id_{media_type}"
 
         # Test upload_media with default type (file) via send()
-        response = notifier.send({
-            "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
-            "msg_type": "upload_media",
-            "media_path": "test.pdf",
-        })
+        response = notifier.send(
+            {
+                "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+                "msg_type": "upload_media",
+                "media_path": "test.pdf",
+            }
+        )
         assert response.success is True
         assert response.data["media_id"] == "test_media_id_file"
         assert response.data["type"] == "file"
         assert "msgtype" not in response.data  # upload_media doesn't use msgtype
 
         # Test upload_media with voice type via send()
-        response = notifier.send({
-            "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
-            "msg_type": "upload_media",
-            "media_path": "test.amr",
-            "upload_media_type": "voice",
-        })
+        response = notifier.send(
+            {
+                "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+                "msg_type": "upload_media",
+                "media_path": "test.amr",
+                "upload_media_type": "voice",
+            }
+        )
         assert response.success is True
         assert response.data["media_id"] == "test_media_id_voice"
         assert response.data["type"] == "voice"
 
         # Test upload_media without media_path should raise error
         with pytest.raises(NotificationError, match="media_path is required"):
-            notifier.send({
-                "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
-                "msg_type": "upload_media",
-            })
+            notifier.send(
+                {
+                    "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+                    "msg_type": "upload_media",
+                }
+            )
 
         # Test upload_media with invalid type should raise error
         with pytest.raises(NotificationError, match="Invalid upload_media_type"):
-            notifier.send({
-                "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
-                "msg_type": "upload_media",
-                "media_path": "test.pdf",
-                "upload_media_type": "invalid",
-            })
+            notifier.send(
+                {
+                    "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test",
+                    "msg_type": "upload_media",
+                    "media_path": "test.pdf",
+                    "upload_media_type": "invalid",
+                }
+            )
 
         # Test that assemble_data raises error for UPLOAD_MEDIA
         with pytest.raises(NotificationError, match="UPLOAD_MEDIA should be handled via send"):
