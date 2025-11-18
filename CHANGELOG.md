@@ -1,3 +1,9 @@
+## v0.4.0 (2025-11-18)
+
+### Feat
+
+- add UPLOAD_MEDIA message type for WeCom
+
 ## v0.3.2 (2025-11-17)
 
 ### Fix
