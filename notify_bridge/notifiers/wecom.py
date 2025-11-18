@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 # Import local modules
 from notify_bridge.components import BaseNotifier, HTTPClientConfig, MessageType, NotificationError
-from notify_bridge.schema import WebhookSchema
+from notify_bridge.schema import NotificationResponse, WebhookSchema
 
 logger = logging.getLogger(__name__)
 
@@ -771,9 +771,12 @@ class WeComNotifier(BaseNotifier):
         if not isinstance(data, WeComSchema):
             raise NotificationError("data must be a WeComSchema instance")
 
-        # For UPLOAD_MEDIA, return the upload result directly without msgtype
+        # For UPLOAD_MEDIA, this should not be called via normal send flow
+        # It's handled separately in send() and send_async()
         if data.msg_type == MessageType.UPLOAD_MEDIA:
-            return self._build_upload_media_payload(data)
+            raise NotificationError(
+                "UPLOAD_MEDIA should be handled via send() or send_async() methods, not assemble_data()"
+            )
 
         # For MARKDOWN_V2, the msgtype should still be "markdown"
         msgtype = "markdown" if data.msg_type == MessageType.MARKDOWN_V2 else data.msg_type
@@ -785,3 +788,63 @@ class WeComNotifier(BaseNotifier):
         payload.update(builder(data))
 
         return payload
+
+    def send(self, notification_data: Union[Dict[str, Any], WeComSchema]) -> NotificationResponse:
+        """Send notification.
+
+        Args:
+            notification_data: Notification data.
+
+        Returns:
+            NotificationResponse: Notification response.
+
+        Raises:
+            NotificationError: If notification fails.
+        """
+        try:
+            notification = self.validate(notification_data)
+
+            # Special handling for UPLOAD_MEDIA
+            if notification.msg_type == MessageType.UPLOAD_MEDIA:
+                result = self._build_upload_media_payload(notification)
+                return NotificationResponse(
+                    success=True,
+                    name=self.name,
+                    message="Media uploaded successfully",
+                    data=result,
+                )
+
+            # Normal flow for other message types
+            return super().send(notification)
+        except Exception as e:
+            raise NotificationError(str(e), notifier_name=self.name)
+
+    async def send_async(self, notification_data: Union[Dict[str, Any], WeComSchema]) -> NotificationResponse:
+        """Send notification asynchronously.
+
+        Args:
+            notification_data: Notification data.
+
+        Returns:
+            NotificationResponse: Notification response.
+
+        Raises:
+            NotificationError: If notification fails.
+        """
+        try:
+            notification = self.validate(notification_data)
+
+            # Special handling for UPLOAD_MEDIA
+            if notification.msg_type == MessageType.UPLOAD_MEDIA:
+                result = self._build_upload_media_payload(notification)
+                return NotificationResponse(
+                    success=True,
+                    name=self.name,
+                    message="Media uploaded successfully",
+                    data=result,
+                )
+
+            # Normal flow for other message types
+            return await super().send_async(notification)
+        except Exception as e:
+            raise NotificationError(str(e), notifier_name=self.name)
