@@ -1,3 +1,10 @@
+## v0.5.2 (2025-11-27)
+
+### Fix
+
+- use markdown_v2 msgtype in _build_markdown_v2_payload
+- preserve markdown_v2 msgtype in WeChat Work API requests
+
 ## v0.5.1 (2025-11-18)
 
 ### Fix

@@ -1,6 +1,6 @@
 [project]
 name = "notify-bridge"
-version = "0.5.1"
+version = "0.5.2"
 description = "A bridge for sending notifications to various platforms"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -59,7 +59,7 @@ dev = [
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.5.1"
+version = "0.5.2"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
