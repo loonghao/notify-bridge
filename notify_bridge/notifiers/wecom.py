@@ -535,7 +535,7 @@ class WeComNotifier(BaseNotifier):
         escaped_content = self._escape_markdown_v2(notification.content)
 
         return {
-            "msgtype": "markdown",
+            "msgtype": "markdown_v2",
             "markdown": {
                 "content": escaped_content,
                 "mentioned_list": notification.mentioned_list,
