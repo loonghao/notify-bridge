@@ -111,7 +111,7 @@ def test_build_markdown_v2_payload():
         webhook_url="https://test.url", msg_type="markdown_v2", content="# Test Title\n\n_underscored_text_"
     )
     payload = notifier.assemble_data(notification)
-    assert payload["msgtype"] == "markdown"
+    assert payload["msgtype"] == "markdown_v2"
     # Only forward slashes should be escaped in markdown_v2
     assert payload["markdown"]["content"] == "# Test Title\n\n_underscored_text_"
 
@@ -119,7 +119,7 @@ def test_build_markdown_v2_payload():
     url_content = "[这是一个链接](https://work.weixin.qq.com/api/doc)"
     notification = WeComSchema(webhook_url="https://test.url", msg_type="markdown_v2", content=url_content)
     payload = notifier.assemble_data(notification)
-    assert payload["msgtype"] == "markdown"
+    assert payload["msgtype"] == "markdown_v2"
     # Forward slashes in URLs should be escaped
     assert payload["markdown"]["content"] == r"[这是一个链接](https:\/\/work.weixin.qq.com\/api\/doc)"
 
