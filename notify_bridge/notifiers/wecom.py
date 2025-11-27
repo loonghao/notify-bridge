@@ -778,9 +778,8 @@ class WeComNotifier(BaseNotifier):
                 "UPLOAD_MEDIA should be handled via send() or send_async() methods, not assemble_data()"
             )
 
-        # For MARKDOWN_V2, the msgtype should still be "markdown"
-        msgtype = "markdown" if data.msg_type == MessageType.MARKDOWN_V2 else data.msg_type
-        payload = {"msgtype": msgtype}
+        # Use msg_type directly - WeChat Work API supports markdown_v2
+        payload = {"msgtype": data.msg_type}
 
         # Get the appropriate builder and build the payload
         msg_type_enum = MessageType(data.msg_type)
