@@ -454,8 +454,8 @@ def test_markdown_v2_preserves_all_formatting():
         payload = notifier.assemble_data(notification)
         # Only forward slashes should be escaped
         assert payload["markdown"]["content"] == expected_content
-        # msgtype should be "markdown" not "markdown_v2"
-        assert payload["msgtype"] == "markdown"
+        # msgtype should be "markdown_v2" for markdown_v2 messages
+        assert payload["msgtype"] == "markdown_v2"
 
 
 def test_build_upload_media_payload():
