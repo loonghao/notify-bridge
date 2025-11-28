@@ -515,9 +515,10 @@ class WeComNotifier(BaseNotifier):
         # Escape special characters for markdown_v2
         escaped_content = self._escape_markdown_v2(notification.content)
 
+        msg_type = MessageType.MARKDOWN_V2.value
         return {
-            "msgtype": "markdown_v2",
-            "markdown": {
+            "msgtype": msg_type,
+            msg_type: {
                 "content": escaped_content,
                 "mentioned_list": notification.mentioned_list,
                 "mentioned_mobile_list": notification.mentioned_mobile_list,

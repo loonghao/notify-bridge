@@ -112,8 +112,8 @@ def test_build_markdown_v2_payload():
     )
     payload = notifier.assemble_data(notification)
     assert payload["msgtype"] == "markdown_v2"
-    # Only forward slashes should be escaped in markdown_v2
-    assert payload["markdown"]["content"] == "# Test Title\n\n_underscored_text_"
+    # The payload key should be "markdown_v2" (not "markdown") to match WeCom official API
+    assert payload["markdown_v2"]["content"] == "# Test Title\n\n_underscored_text_"
 
     # Test markdown_v2 message with URL (forward slashes should be escaped)
     url_content = "[这是一个链接](https://work.weixin.qq.com/api/doc)"
@@ -121,7 +121,7 @@ def test_build_markdown_v2_payload():
     payload = notifier.assemble_data(notification)
     assert payload["msgtype"] == "markdown_v2"
     # Forward slashes in URLs should be escaped
-    assert payload["markdown"]["content"] == r"[这是一个链接](https:\/\/work.weixin.qq.com\/api\/doc)"
+    assert payload["markdown_v2"]["content"] == r"[这是一个链接](https:\/\/work.weixin.qq.com\/api\/doc)"
 
 
 def test_build_image_payload():
@@ -522,7 +522,8 @@ def test_markdown_v2_preserves_all_formatting():
         notification = WeComSchema(webhook_url="https://test.url", msg_type="markdown_v2", content=input_content)
         payload = notifier.assemble_data(notification)
         # Only forward slashes should be escaped
-        assert payload["markdown"]["content"] == expected_content
+        # The payload key should be "markdown_v2" (not "markdown") to match WeCom official API
+        assert payload["markdown_v2"]["content"] == expected_content
         # msgtype should be "markdown_v2" for markdown_v2 messages
         assert payload["msgtype"] == "markdown_v2"
 
