@@ -61,6 +61,9 @@ class NotifierFactory:
     def create_notifier(self, name: str, config: Optional[HTTPClientConfig] = None, **kwargs: Any) -> BaseNotifier:
         """Create a notifier instance.
 
+        This method works for both sync and async contexts since notifier
+        instantiation is synchronous.
+
         Args:
             name: Name of the notifier.
             config: HTTP client configuration.
@@ -74,27 +77,6 @@ class NotifierFactory:
         """
         notifier_class = self.get_notifier_class(name)
         if notifier_class is None:
-            raise NoSuchNotifierError(f"Notifier {name} not found")
-        return notifier_class(config=config, **kwargs)
-
-    async def create_async_notifier(
-        self, name: str, config: Optional[HTTPClientConfig] = None, **kwargs: Any
-    ) -> BaseNotifier:
-        """Create a notifier instance.
-
-        Args:
-            name: Notifier name.
-            config: HTTP client configuration.
-            **kwargs: Additional arguments.
-
-        Returns:
-            Notifier instance.
-
-        Raises:
-            NoSuchNotifierError: If notifier not found.
-        """
-        notifier_class = self.get_notifier_class(name)
-        if not notifier_class:
             raise NoSuchNotifierError(f"Notifier {name} not found")
         return notifier_class(config=config, **kwargs)
 

@@ -229,19 +229,23 @@ def test_create_notifier_with_kwargs(factory: NotifierFactory) -> None:
 
 @pytest.mark.asyncio
 async def test_create_async_notifier(factory: NotifierFactory) -> None:
-    """Test creating an async notifier."""
+    """Test creating a notifier in async context.
+
+    Note: Notifier creation is synchronous since instantiation doesn't require I/O.
+    This test verifies the notifier can be used in async context.
+    """
     factory.register_notifier("test", TestNotifier)
     config = HTTPClientConfig()
-    notifier = await factory.create_async_notifier("test", config)
+    notifier = factory.create_notifier("test", config)
     assert isinstance(notifier, TestNotifier)
 
 
 @pytest.mark.asyncio
 async def test_create_async_notifier_invalid(factory: NotifierFactory) -> None:
-    """Test creating an invalid async notifier."""
+    """Test creating an invalid notifier in async context."""
     config = HTTPClientConfig()
     with pytest.raises(NoSuchNotifierError):
-        await factory.create_async_notifier("invalid", config)
+        factory.create_notifier("invalid", config)
 
 
 def test_notify_with_kwargs(factory: NotifierFactory) -> None:

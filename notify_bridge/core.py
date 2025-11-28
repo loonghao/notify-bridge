@@ -62,10 +62,7 @@ class NotifyBridge:
         if self._sync_client:
             self._sync_client.close()
         self._sync_client = None
-        for notifier in self._notifiers.values():
-            if hasattr(notifier, "close"):
-                notifier.close()
-        self._notifiers.clear()
+        self._cleanup_notifiers_sync()
 
     async def __aenter__(self) -> "NotifyBridge":
         """Enter async context manager."""
@@ -81,9 +78,18 @@ class NotifyBridge:
         if self._async_client:
             await self._async_client.aclose()
         self._async_client = None
+        await self._cleanup_notifiers_async()
+
+    def _cleanup_notifiers_sync(self) -> None:
+        """Clean up all notifiers synchronously."""
         for notifier in self._notifiers.values():
-            if hasattr(notifier, "close"):
-                notifier.close()
+            notifier.close()
+        self._notifiers.clear()
+
+    async def _cleanup_notifiers_async(self) -> None:
+        """Clean up all notifiers asynchronously."""
+        for notifier in self._notifiers.values():
+            await notifier.close_async()
         self._notifiers.clear()
 
     def get_notifier_class(self, name: str) -> Type[BaseNotifier]:
@@ -106,20 +112,8 @@ class NotifyBridge:
     def create_notifier(self, name: str) -> BaseNotifier:
         """Create a notifier instance.
 
-        Args:
-            name: Name of the notifier
-
-        Returns:
-            Notifier instance
-
-        Raises:
-            NoSuchNotifierError: If notifier is not found
-        """
-        notifier_class = self.get_notifier_class(name)
-        return notifier_class(config=self._config)
-
-    async def create_async_notifier(self, name: str) -> BaseNotifier:
-        """Create an async notifier instance.
+        This method works for both sync and async contexts since notifier
+        instantiation is synchronous.
 
         Args:
             name: Name of the notifier
