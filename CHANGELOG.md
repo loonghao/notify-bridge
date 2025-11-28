@@ -1,3 +1,9 @@
+## v0.5.3 (2025-11-28)
+
+### Refactor
+
+- optimize code and fix async cleanup issues
+
 ## v0.5.2 (2025-11-27)
 
 ### Fix
