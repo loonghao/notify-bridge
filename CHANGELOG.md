@@ -1,3 +1,9 @@
+## v0.6.0 (2025-11-28)
+
+### Feat
+
+- add debug logging for request payload and response
+
 ## v0.5.3 (2025-11-28)
 
 ### Refactor
