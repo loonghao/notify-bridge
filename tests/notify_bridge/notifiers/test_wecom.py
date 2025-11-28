@@ -310,6 +310,75 @@ def test_invalid_schema():
         notifier.assemble_data({"invalid": "data"})
 
 
+def test_empty_content_validation():
+    """Test that empty content raises NotificationError for text/markdown messages."""
+    notifier = WeComNotifier()
+
+    # Test text message with empty content
+    notification = WeComSchema(
+        webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test-key",
+        msg_type="text",
+        content="",
+    )
+    with pytest.raises(NotificationError, match="content is required"):
+        notifier.assemble_data(notification)
+
+    # Test text message with None content
+    notification = WeComSchema(
+        webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test-key",
+        msg_type="text",
+    )
+    with pytest.raises(NotificationError, match="content is required"):
+        notifier.assemble_data(notification)
+
+    # Test markdown message with empty content
+    notification = WeComSchema(
+        webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test-key",
+        msg_type="markdown",
+        content="",
+    )
+    with pytest.raises(NotificationError, match="content is required"):
+        notifier.assemble_data(notification)
+
+    # Test markdown_v2 message with empty content
+    notification = WeComSchema(
+        webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test-key",
+        msg_type="markdown_v2",
+        content="",
+    )
+    with pytest.raises(NotificationError, match="content is required"):
+        notifier.assemble_data(notification)
+
+
+def test_payload_structure():
+    """Test that payload structure is correct for API requirements."""
+    notifier = WeComNotifier()
+
+    # Test text payload has all required fields
+    notification = WeComSchema(
+        webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test-key",
+        msg_type="text",
+        content="Test content",
+    )
+    payload = notifier.assemble_data(notification)
+    assert "msgtype" in payload
+    assert "text" in payload
+    assert "content" in payload["text"]
+    assert payload["text"]["content"] == "Test content"
+
+    # Test markdown payload has all required fields
+    notification = WeComSchema(
+        webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test-key",
+        msg_type="markdown",
+        content="# Title\nContent",
+    )
+    payload = notifier.assemble_data(notification)
+    assert "msgtype" in payload
+    assert "markdown" in payload
+    assert "content" in payload["markdown"]
+    assert payload["msgtype"] == "markdown"
+
+
 def test_format_markdown():
     """Test markdown formatting."""
     notifier = WeComNotifier()
