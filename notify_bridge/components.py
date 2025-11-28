@@ -4,6 +4,7 @@ This module contains the base notifier classes and core functionality.
 """
 
 # Import built-in modules
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Dict, Optional, Type, Union
 
@@ -14,6 +15,8 @@ from pydantic import ValidationError
 from notify_bridge.exceptions import NotificationError
 from notify_bridge.schema import MessageType, NotificationResponse, NotificationSchema
 from notify_bridge.utils import AsyncHTTPClient, HTTPClient, HTTPClientConfig
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractNotifier(ABC):
@@ -266,10 +269,20 @@ class BaseNotifier(AbstractNotifier):
         """
         try:
             notification = self.validate(notification_data)
-            request_params = self.prepare_request_params(notification, self._prepare_data(notification))
+            payload = self._prepare_data(notification)
+            request_params = self.prepare_request_params(notification, payload)
+
+            # Log debug information for troubleshooting
+            logger.debug("[%s] Sending notification to: %s", self.name, notification.webhook_url)
+            logger.debug("[%s] Request payload: %s", self.name, payload)
+
             client = self._ensure_sync_client()
-            response = client.request(request_params.pop("method"), **request_params)
+            method = request_params.pop("method")
+            response = client.request(method, **request_params)
             data = response.json()
+
+            logger.debug("[%s] Response: %s", self.name, data)
+
             return NotificationResponse(
                 success=True,
                 name=self.name,
@@ -277,6 +290,7 @@ class BaseNotifier(AbstractNotifier):
                 data=data,
             )
         except Exception as e:
+            logger.error("[%s] Failed to send notification: %s", self.name, str(e))
             raise NotificationError(str(e), notifier_name=self.name)
 
     async def send_async(self, notification_data: Union[Dict[str, Any], NotificationSchema]) -> NotificationResponse:
@@ -293,10 +307,20 @@ class BaseNotifier(AbstractNotifier):
         """
         try:
             notification = self.validate(notification_data)
-            request_params = self.prepare_request_params(notification, self._prepare_data(notification))
+            payload = self._prepare_data(notification)
+            request_params = self.prepare_request_params(notification, payload)
+
+            # Log debug information for troubleshooting
+            logger.debug("[%s] Sending notification to: %s", self.name, notification.webhook_url)
+            logger.debug("[%s] Request payload: %s", self.name, payload)
+
             client = await self._ensure_async_client()
-            response = await client.request(request_params.pop("method"), **request_params)
+            method = request_params.pop("method")
+            response = await client.request(method, **request_params)
             data = response.json()
+
+            logger.debug("[%s] Response: %s", self.name, data)
+
             return NotificationResponse(
                 success=True,
                 name=self.name,
@@ -304,4 +328,5 @@ class BaseNotifier(AbstractNotifier):
                 data=data,
             )
         except Exception as e:
+            logger.error("[%s] Failed to send notification: %s", self.name, str(e))
             raise NotificationError(str(e), notifier_name=self.name)
