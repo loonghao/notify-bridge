@@ -44,7 +44,7 @@ class BaseSchema(BaseModel):
     Platform-specific fields should be added in platform-specific schemas.
     """
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
     def to_payload(self) -> Dict[str, Any]:
         """Convert schema to payload.

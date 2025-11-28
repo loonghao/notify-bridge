@@ -90,3 +90,43 @@ def test_data() -> Dict[str, Any]:
         "msg_type": "text",
         "labels": ["test"],
     }
+
+
+def test_schema_populate_by_name():
+    """Test that schema accepts both field name and alias.
+
+    The content field has alias="message", so both should work:
+    - content="Test" (field name)
+    - message="Test" (alias)
+    """
+    # Test using alias (message=)
+    schema1 = WebhookSchema(
+        webhook_url="https://example.com",
+        message="Test via alias",
+    )
+    assert schema1.content == "Test via alias"
+
+    # Test using field name (content=)
+    schema2 = WebhookSchema(
+        webhook_url="https://example.com",
+        content="Test via field name",
+    )
+    assert schema2.content == "Test via field name"
+
+    # Test dict with field name
+    schema3 = WebhookSchema(
+        **{
+            "webhook_url": "https://example.com",
+            "content": "Test via dict field name",
+        }
+    )
+    assert schema3.content == "Test via dict field name"
+
+    # Test dict with alias
+    schema4 = WebhookSchema(
+        **{
+            "webhook_url": "https://example.com",
+            "message": "Test via dict alias",
+        }
+    )
+    assert schema4.content == "Test via dict alias"
