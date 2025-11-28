@@ -395,28 +395,22 @@ class WeComNotifier(BaseNotifier):
         except Exception as e:
             raise NotificationError(f"Failed to upload file: {str(e)}")
 
-    def _format_markdown(self, content: str, color_map: Optional[Dict[str, str]] = None) -> str:
+    def _format_markdown(self, content: str, color_map: Optional[Dict[str, str]] = None) -> str:  # noqa: ARG002
         """Format markdown content.
 
         Args:
             content: The markdown content to format.
-            color_map: Optional color mapping for text.
+            color_map: Optional color mapping for text (reserved for future use).
 
         Returns:
             str: The formatted markdown content.
         """
-        # type: ignore[return]
+        # Note: color_map parameter is reserved for future use
         if not isinstance(content, str):
             raise NotificationError("Content must be a string")
 
         # Replace horizontal rules
         content = re.sub(r"^-{3,}$", "\n---\n", content, flags=re.MULTILINE)
-
-        # Add support for colored text
-        default_colors = {"info": "green", "comment": "gray", "warning": "orange-red"}
-        colors = {**default_colors, **(color_map or {})}
-        for color, _ in colors.items():
-            content = content.replace(f'<font color="{color}">', f'<font color="{color}">')
 
         # Replace list markers for better visual effect
         content = re.sub(r"^\s*[-*+]\s+", "• ", content, flags=re.MULTILINE)  # Unordered lists
@@ -431,21 +425,8 @@ class WeComNotifier(BaseNotifier):
 
         content = re.sub(r"^\s*(\d+)\.\s+", replace_ordered_list, content, flags=re.MULTILINE)
 
-        # Format blockquotes
+        # Format blockquotes - normalize spacing
         content = re.sub(r"^\s*>\s*(.+)$", r"> \1", content, flags=re.MULTILINE)
-
-        # Format inline code
-        content = re.sub(r"`([^`]+)`", r"`\1`", content)
-
-        # Format links
-        content = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"[\1](\2)", content)
-
-        # Format bold text
-        content = re.sub(r"\*\*([^*]+)\*\*", r"**\1**", content)
-
-        # Format italic text
-        content = re.sub(r"\*([^*]+)\*", r"*\1*", content)
-        # Note: Preserve underscores as-is, do not convert to italic
 
         return content
 
@@ -788,6 +769,25 @@ class WeComNotifier(BaseNotifier):
 
         return payload
 
+    def _handle_upload_media(self, notification: WeComSchema) -> Optional[NotificationResponse]:
+        """Handle UPLOAD_MEDIA message type.
+
+        Args:
+            notification: Validated notification data.
+
+        Returns:
+            NotificationResponse if this is an upload_media message, None otherwise.
+        """
+        if notification.msg_type == MessageType.UPLOAD_MEDIA:
+            result = self._build_upload_media_payload(notification)
+            return NotificationResponse(
+                success=True,
+                name=self.name,
+                message="Media uploaded successfully",
+                data=result,
+            )
+        return None
+
     def send(self, notification_data: Union[Dict[str, Any], WeComSchema]) -> NotificationResponse:
         """Send notification.
 
@@ -804,14 +804,8 @@ class WeComNotifier(BaseNotifier):
             notification = self.validate(notification_data)
 
             # Special handling for UPLOAD_MEDIA
-            if notification.msg_type == MessageType.UPLOAD_MEDIA:
-                result = self._build_upload_media_payload(notification)
-                return NotificationResponse(
-                    success=True,
-                    name=self.name,
-                    message="Media uploaded successfully",
-                    data=result,
-                )
+            if response := self._handle_upload_media(notification):
+                return response
 
             # Normal flow for other message types
             return super().send(notification)
@@ -834,14 +828,8 @@ class WeComNotifier(BaseNotifier):
             notification = self.validate(notification_data)
 
             # Special handling for UPLOAD_MEDIA
-            if notification.msg_type == MessageType.UPLOAD_MEDIA:
-                result = self._build_upload_media_payload(notification)
-                return NotificationResponse(
-                    success=True,
-                    name=self.name,
-                    message="Media uploaded successfully",
-                    data=result,
-                )
+            if response := self._handle_upload_media(notification):
+                return response
 
             # Normal flow for other message types
             return await super().send_async(notification)

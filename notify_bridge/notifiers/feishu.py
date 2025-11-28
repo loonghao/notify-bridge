@@ -240,14 +240,17 @@ class FeishuNotifier(BaseNotifier):
         Raises:
             NotificationError: If message type is not supported.
         """
-        if data.msg_type == MessageType.TEXT:
+        # Convert string to MessageType enum for consistent comparison
+        msg_type = MessageType(data.msg_type) if isinstance(data.msg_type, str) else data.msg_type
+
+        if msg_type == MessageType.TEXT:
             return self._build_text_payload(data)
-        elif data.msg_type == MessageType.POST:
+        elif msg_type == MessageType.POST:
             return self._build_post_payload(data)
-        elif data.msg_type == MessageType.IMAGE:
+        elif msg_type == MessageType.IMAGE:
             return self._build_image_payload(data)
-        elif data.msg_type == MessageType.FILE:
+        elif msg_type == MessageType.FILE:
             return self._build_file_payload(data)
-        elif data.msg_type == MessageType.INTERACTIVE:
+        elif msg_type == MessageType.INTERACTIVE:
             return self._assemble_interactive_data(data)
         raise NotificationError(f"Unsupported message type: {data.msg_type}", notifier_name=self.name)

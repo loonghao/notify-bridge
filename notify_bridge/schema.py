@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 # Import third-party modules
-from pydantic import AliasChoices, BaseModel, Field, SecretStr, model_validator
+from pydantic import AliasChoices, BaseModel, Field, SecretStr
 
 
 class MessageType(str, Enum):
@@ -53,18 +53,6 @@ class BaseSchema(BaseModel):
             Dict[str, Any]: Payload data.
         """
         return dict(self.model_dump(exclude_none=True))
-
-    @model_validator(mode="before")
-    def validate_base_fields(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate base fields.
-
-        Args:
-            data: Data to validate.
-
-        Returns:
-            Dict[str, Any]: Validated data.
-        """
-        return data
 
 
 class HTTPSchema(BaseSchema):
