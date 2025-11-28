@@ -1,3 +1,9 @@
+## v0.6.1 (2025-11-28)
+
+### Fix
+
+- add populate_by_name to model_config for field name support
+
 ## v0.6.0 (2025-11-28)
 
 ### Feat
