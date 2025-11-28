@@ -1,3 +1,9 @@
+## v0.6.2 (2025-11-28)
+
+### Fix
+
+- **wecom**: use correct payload key 'markdown_v2' for markdown_v2 message type
+
 ## v0.6.1 (2025-11-28)
 
 ### Fix
