@@ -363,7 +363,7 @@ class TestWeComTemplateCardMessage:
                 "title": "E2E Test - News Notice Card",
                 "desc": f"Test at {datetime.now().isoformat()}",
             },
-            template_card_card_image={
+            template_card_image={
                 "url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
                 "aspect_ratio": 1.3,
             },
