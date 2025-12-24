@@ -18,9 +18,9 @@ jobs:
     runs-on: ${{ matrix.target.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
@@ -46,3 +46,24 @@ jobs:
           export PYTHON_VERSION=${{ matrix.python-version }}
           export SKIP=pre-commit-hooks  # Skip pre-commit hooks during lint
           nox -s lint
+
+  docs-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: docs/package.json
+
+      - name: Install dependencies
+        working-directory: docs
+        run: npm ci || npm install
+
+      - name: Build documentation
+        working-directory: docs
+        run: npm run docs:build
