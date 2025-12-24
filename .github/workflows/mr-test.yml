@@ -33,7 +33,6 @@ jobs:
           else
             source .venv/bin/activate
           fi
-          uv pip install -e ".[dev]"
           uv pip install -r requirements-dev.txt
           pre-commit install
       - name: lint
@@ -55,7 +54,7 @@ jobs:
           else
             source .venv/bin/activate
           fi
-          pytest tests/ --ignore=tests/e2e/ -v --tb=short
+          nox -s pytest -- tests/ --ignore=tests/e2e/ -v
 
   e2e-test:
     runs-on: ubuntu-latest
@@ -75,8 +74,7 @@ jobs:
           python -m pip install uv
           uv venv
           source .venv/bin/activate
-          uv pip install -e ".[dev]"
-          uv pip install pytest pytest-asyncio
+          uv pip install -r requirements-dev.txt
 
       - name: Run E2E tests
         env:
@@ -84,7 +82,7 @@ jobs:
         run: |
           source .venv/bin/activate
           if [ -n "$WECOM_WEBHOOK_URL" ]; then
-            pytest tests/e2e/ -v --tb=short
+            nox -s pytest -- tests/e2e/ -v
           else
             echo "WECOM_WEBHOOK_URL not set, skipping E2E tests"
           fi
