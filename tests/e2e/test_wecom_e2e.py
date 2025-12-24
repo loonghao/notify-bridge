@@ -18,7 +18,6 @@ import pytest
 # Import local modules
 from notify_bridge import NotifyBridge
 from notify_bridge.notifiers.wecom import WeComNotifier, WeComSchema
-from notify_bridge.schema import NotificationResponse
 
 
 # Skip all tests if WECOM_WEBHOOK_URL is not set
