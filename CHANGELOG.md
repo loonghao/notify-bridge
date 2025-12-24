@@ -1,3 +1,17 @@
+## v0.7.0 (2025-12-24)
+
+### Feat
+
+- add markdown/markdown_v2 e2e tests and VitePress documentation
+
+### Fix
+
+- **ci**: use nox for running tests to ensure proper environment
+- **e2e**: correct parameter name template_card_image
+- **e2e**: add required card_image for news_notice template card
+- **ci**: install package with dev dependencies for unit tests
+- add autoflake to pre-commit and remove unused import
+
 ## v0.6.2 (2025-11-28)
 
 ### Fix
