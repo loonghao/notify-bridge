@@ -33,6 +33,7 @@ jobs:
           else
             source .venv/bin/activate
           fi
+          uv pip install -e ".[dev]"
           uv pip install -r requirements-dev.txt
           pre-commit install
       - name: lint
