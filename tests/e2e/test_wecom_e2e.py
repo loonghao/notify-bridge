@@ -407,31 +407,37 @@ class TestWeComDirectNotifier:
 
     def test_direct_notifier_text(self, notifier: WeComNotifier, webhook_url: str) -> None:
         """Test sending text message using notifier directly."""
-        response = notifier.send({
-            "webhook_url": webhook_url,
-            "msg_type": "text",
-            "content": f"[E2E Test] Direct notifier text at {datetime.now().isoformat()}",
-        })
+        response = notifier.send(
+            {
+                "webhook_url": webhook_url,
+                "msg_type": "text",
+                "content": f"[E2E Test] Direct notifier text at {datetime.now().isoformat()}",
+            }
+        )
         assert response.success is True
         assert response.data.get("errcode") == 0
 
     def test_direct_notifier_markdown(self, notifier: WeComNotifier, webhook_url: str) -> None:
         """Test sending markdown message using notifier directly."""
-        response = notifier.send({
-            "webhook_url": webhook_url,
-            "msg_type": "markdown",
-            "content": f"# Direct Notifier Test\n\n**Time**: {datetime.now().isoformat()}",
-        })
+        response = notifier.send(
+            {
+                "webhook_url": webhook_url,
+                "msg_type": "markdown",
+                "content": f"# Direct Notifier Test\n\n**Time**: {datetime.now().isoformat()}",
+            }
+        )
         assert response.success is True
         assert response.data.get("errcode") == 0
 
     def test_direct_notifier_markdown_v2(self, notifier: WeComNotifier, webhook_url: str) -> None:
         """Test sending markdown_v2 message using notifier directly."""
-        response = notifier.send({
-            "webhook_url": webhook_url,
-            "msg_type": "markdown_v2",
-            "content": f"# Direct Notifier Test - Markdown V2\n\n_Underscored_ at {datetime.now().isoformat()}",
-        })
+        response = notifier.send(
+            {
+                "webhook_url": webhook_url,
+                "msg_type": "markdown_v2",
+                "content": f"# Direct Notifier Test - Markdown V2\n\n_Underscored_ at {datetime.now().isoformat()}",
+            }
+        )
         assert response.success is True
         assert response.data.get("errcode") == 0
 
@@ -449,11 +455,13 @@ class TestWeComDirectNotifier:
     @pytest.mark.asyncio
     async def test_direct_notifier_async(self, notifier: WeComNotifier, webhook_url: str) -> None:
         """Test sending message asynchronously using notifier directly."""
-        response = await notifier.send_async({
-            "webhook_url": webhook_url,
-            "msg_type": "text",
-            "content": f"[E2E Test] Direct async message at {datetime.now().isoformat()}",
-        })
+        response = await notifier.send_async(
+            {
+                "webhook_url": webhook_url,
+                "msg_type": "text",
+                "content": f"[E2E Test] Direct async message at {datetime.now().isoformat()}",
+            }
+        )
         assert response.success is True
         assert response.data.get("errcode") == 0
 
