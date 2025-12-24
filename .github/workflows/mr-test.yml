@@ -46,6 +46,47 @@ jobs:
           export PYTHON_VERSION=${{ matrix.python-version }}
           export SKIP=pre-commit-hooks  # Skip pre-commit hooks during lint
           nox -s lint
+      - name: Run unit tests
+        shell: bash
+        run: |
+          if [ "${{ matrix.target.os }}" = "windows-latest" ]; then
+            source .venv/Scripts/activate
+          else
+            source .venv/bin/activate
+          fi
+          pytest tests/ --ignore=tests/e2e/ -v --tb=short
+
+  e2e-test:
+    runs-on: ubuntu-latest
+    # Only run E2E tests if WECOM_WEBHOOK_URL secret is available
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install uv
+          uv venv
+          source .venv/bin/activate
+          uv pip install -e ".[dev]"
+          uv pip install pytest pytest-asyncio
+
+      - name: Run E2E tests
+        env:
+          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+        run: |
+          source .venv/bin/activate
+          if [ -n "$WECOM_WEBHOOK_URL" ]; then
+            pytest tests/e2e/ -v --tb=short
+          else
+            echo "WECOM_WEBHOOK_URL not set, skipping E2E tests"
+          fi
 
   docs-build:
     runs-on: ubuntu-latest
