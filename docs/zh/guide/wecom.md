@@ -44,7 +44,9 @@ response = bridge.send(
 )
 ```
 
-### 带 @ 提及的文本
+### 带 @ 人的文本消息
+
+对于文本消息，您可以使用 `mentioned_list` 和 `mentioned_mobile_list` 参数来 @ 人：
 
 ```python
 response = bridge.send(
@@ -52,12 +54,55 @@ response = bridge.send(
     webhook_url="YOUR_WEBHOOK_URL",
     message="重要公告！",
     msg_type="text",
-    mentioned_list=["@all"],  # 提及所有人
-    # 或通过企业微信用户 ID 提及特定用户
+    mentioned_list=["@all"],  # @ 所有人
+    # 或通过企业微信用户 ID @ 特定用户
     # mentioned_list=["user1", "user2"],
     # 或通过手机号
     # mentioned_mobile_list=["13800138000"],
 )
+```
+
+### 使用 MentionHelper
+
+`MentionHelper` 类提供了便捷的 @ 人语法构建方法：
+
+```python
+from notify_bridge.notifiers.wecom import MentionHelper
+
+# 在 Markdown 内容中 @ 特定用户
+content = f"你好 {MentionHelper.mention_user('zhangsan')}，请审阅这个！"
+# 结果："你好 <@zhangsan>，请审阅这个！"
+
+# @ 多个用户
+mentions = MentionHelper.mention_users(["user1", "user2", "user3"])
+content = f"{mentions} 请检查这个紧急问题！"
+# 结果："<@user1> <@user2> <@user3> 请检查这个紧急问题！"
+
+# @ 所有人
+content = f"{MentionHelper.mention_all()} 系统维护通知！"
+# 结果："<@all> 系统维护通知！"
+
+# 获取文本消息的 @ 人参数
+params = MentionHelper.get_mention_params(
+    user_ids=["user1", "user2"],
+    mobile_numbers=["13800138000"]
+)
+# 配合 bridge.send() 使用
+response = bridge.send(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    message="重要通知！",
+    msg_type="text",
+    **params
+)
+
+# 检查内容是否包含 @ 人
+has_mentions = MentionHelper.has_mentions("你好 <@user1>！")  # True
+no_mentions = MentionHelper.has_mentions("大家好！")   # False
+
+# 从内容中提取用户 ID
+users = MentionHelper.extract_mentions("嗨 <@admin> 和 <@user123>")
+# 结果：["admin", "user123"]
 ```
 
 ## Markdown 消息
@@ -89,6 +134,54 @@ response = bridge.send(
 )
 ```
 
+### Markdown 中 @ 人
+
+在 Markdown 消息中，您可以使用 `<@userid>` 语法在内容中直接 @ 特定用户：
+
+```python
+from notify_bridge.notifiers.wecom import MentionHelper
+
+# 使用 MentionHelper（推荐）
+content = f"""# 紧急审阅请求
+
+你好 {MentionHelper.mention_user('zhangsan')}，
+请审阅来自 {MentionHelper.mention_user('lisi')} 的部署请求。
+
+> 优先级：高
+> 截止时间：今天下班前
+"""
+
+response = bridge.send(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    message=content,
+    msg_type="markdown"
+)
+
+# 或者手动编写 @ 人语法
+content = """# 每日报告
+
+<@all> 今日数据：
+- 新用户：100
+- 活跃用户：500
+
+感谢 <@manager> 的支持！
+"""
+
+response = bridge.send(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    message=content,
+    msg_type="markdown"
+)
+```
+
+::: tip Markdown 中 @ 人说明
+- 使用 `<@userid>` 语法在 Markdown 内容中 @ 人
+- `mentioned_list` 和 `mentioned_mobile_list` 参数在 Markdown 模式下**无效**
+- 要 @ 人，请直接在内容中包含 `<@userid>` 语法
+:::
+
 ### Markdown V2
 
 `markdown_v2` 提供增强的 markdown 支持，更好地处理下划线和 URL：
@@ -118,6 +211,13 @@ response = bridge.send(
 - 对于标准 markdown 内容使用 `markdown`
 - 当内容包含需要保留的下划线时使用 `markdown_v2`
 - 在 `markdown_v2` 中，URL 中的斜杠会自动转义
+:::
+
+::: warning 重要：Markdown V2 不支持 @ 人
+**Markdown V2 不支持 `<@userid>` @ 人语法！** 如果您需要 @ 人：
+- 使用 `markdown` 消息类型配合 `<@userid>` 语法
+- 使用 `text` 消息类型配合 `mentioned_list` 参数
+- 在 `markdown_v2` 中使用 `<@userid>` 会触发警告
 :::
 
 ## 图片消息

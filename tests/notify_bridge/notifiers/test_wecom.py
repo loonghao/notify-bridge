@@ -1,6 +1,7 @@
 """Test WeCom notifier implementation."""
 
 # Import built-in modules
+import warnings
 from pathlib import Path
 
 # Import third-party modules
@@ -11,6 +12,7 @@ from notify_bridge.components import MessageType
 from notify_bridge.exceptions import NotificationError
 from notify_bridge.notifiers.wecom import (
     Article,
+    MentionHelper,
     TemplateCardAction,
     TemplateCardEmphasisContent,
     TemplateCardHorizontalContentItem,
@@ -24,6 +26,187 @@ from notify_bridge.notifiers.wecom import (
     WeComNotifier,
     WeComSchema,
 )
+
+
+class TestMentionHelper:
+    """Test MentionHelper class."""
+
+    def test_mention_user(self):
+        """Test mention_user method."""
+        assert MentionHelper.mention_user("zhangsan") == "<@zhangsan>"
+        assert MentionHelper.mention_user("user123") == "<@user123>"
+        assert MentionHelper.mention_user("wangwu") == "<@wangwu>"
+
+    def test_mention_all(self):
+        """Test mention_all method."""
+        assert MentionHelper.mention_all() == "<@all>"
+
+    def test_mention_users(self):
+        """Test mention_users method."""
+        # Test single user
+        assert MentionHelper.mention_users(["user1"]) == "<@user1>"
+
+        # Test multiple users
+        assert MentionHelper.mention_users(["user1", "user2"]) == "<@user1> <@user2>"
+        assert MentionHelper.mention_users(["a", "b", "c"]) == "<@a> <@b> <@c>"
+
+        # Test empty list
+        assert MentionHelper.mention_users([]) == ""
+
+    def test_get_mention_params(self):
+        """Test get_mention_params method."""
+        # Test with user_ids only
+        params = MentionHelper.get_mention_params(user_ids=["user1", "user2"])
+        assert params == {"mentioned_list": ["user1", "user2"]}
+
+        # Test with mobile_numbers only
+        params = MentionHelper.get_mention_params(mobile_numbers=["13800138000", "13900139000"])
+        assert params == {"mentioned_mobile_list": ["13800138000", "13900139000"]}
+
+        # Test with both
+        params = MentionHelper.get_mention_params(
+            user_ids=["user1"],
+            mobile_numbers=["13800138000"]
+        )
+        assert params == {
+            "mentioned_list": ["user1"],
+            "mentioned_mobile_list": ["13800138000"]
+        }
+
+        # Test with empty lists
+        params = MentionHelper.get_mention_params()
+        assert params == {}
+
+        params = MentionHelper.get_mention_params(user_ids=[], mobile_numbers=[])
+        assert params == {}
+
+    def test_extract_mentions(self):
+        """Test extract_mentions method."""
+        # Test single mention
+        assert MentionHelper.extract_mentions("Hello <@user1>!") == ["user1"]
+
+        # Test multiple mentions
+        assert MentionHelper.extract_mentions("<@user1> and <@user2>") == ["user1", "user2"]
+
+        # Test no mentions
+        assert MentionHelper.extract_mentions("Hello everyone!") == []
+
+        # Test complex content
+        content = "Hi <@admin>, please help <@user123> with the issue."
+        assert MentionHelper.extract_mentions(content) == ["admin", "user123"]
+
+    def test_has_mentions(self):
+        """Test has_mentions method."""
+        # Test with mentions
+        assert MentionHelper.has_mentions("Hello <@user1>!") is True
+        assert MentionHelper.has_mentions("<@all> Attention!") is True
+
+        # Test without mentions
+        assert MentionHelper.has_mentions("Hello everyone!") is False
+        assert MentionHelper.has_mentions("") is False
+
+        # Test similar patterns that are not mentions
+        assert MentionHelper.has_mentions("<@>") is False  # No user id
+        assert MentionHelper.has_mentions("Email: user@test.com") is False
+
+    def test_build_content_with_mentions(self):
+        """Test build_content_with_mentions method."""
+        # Test with single user
+        result = MentionHelper.build_content_with_mentions("Please review!", ["user1"])
+        assert result == "<@user1> Please review!"
+
+        # Test with multiple users
+        result = MentionHelper.build_content_with_mentions("Check this out!", ["user1", "user2"])
+        assert result == "<@user1> <@user2> Check this out!"
+
+        # Test with empty list
+        result = MentionHelper.build_content_with_mentions("Hello!", [])
+        assert result == "Hello!"
+
+
+class TestMentionIntegration:
+    """Test mention functionality integration with WeComNotifier."""
+
+    def test_markdown_payload_without_mention_params(self):
+        """Test that markdown payload does not include mentioned_list params."""
+        notifier = WeComNotifier()
+
+        # Markdown messages should use <@userid> syntax in content, not mentioned_list params
+        notification = WeComSchema(
+            webhook_url="https://test.url",
+            msg_type="markdown",
+            content="Hello <@user1>, please check this!",
+            mentioned_list=["user1"],  # This should be ignored in markdown
+            mentioned_mobile_list=["13800138000"],
+        )
+        payload = notifier.assemble_data(notification)
+
+        assert payload["msgtype"] == "markdown"
+        assert "mentioned_list" not in payload["markdown"]
+        assert "mentioned_mobile_list" not in payload["markdown"]
+        assert "<@user1>" in payload["markdown"]["content"]
+
+    def test_markdown_v2_warns_on_mentions(self):
+        """Test that markdown_v2 warns when content contains mentions."""
+        notifier = WeComNotifier()
+
+        # Should warn when markdown_v2 contains <@userid> syntax
+        with pytest.warns(UserWarning, match="Markdown V2 does not support mention syntax"):
+            notification = WeComSchema(
+                webhook_url="https://test.url",
+                msg_type="markdown_v2",
+                content="Hello <@user1>, please check this!",
+            )
+            notifier.assemble_data(notification)
+
+    def test_markdown_v2_no_warning_without_mentions(self):
+        """Test that markdown_v2 does not warn when no mentions."""
+        notifier = WeComNotifier()
+
+        # Should not warn when no mentions
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # Turn warnings into errors
+            notification = WeComSchema(
+                webhook_url="https://test.url",
+                msg_type="markdown_v2",
+                content="Hello everyone, please check this!",
+            )
+            payload = notifier.assemble_data(notification)
+            assert payload["msgtype"] == "markdown_v2"
+
+    def test_text_payload_with_mentions(self):
+        """Test that text payload includes mentioned_list params."""
+        notifier = WeComNotifier()
+
+        notification = WeComSchema(
+            webhook_url="https://test.url",
+            msg_type="text",
+            content="Important announcement!",
+            mentioned_list=["user1", "user2"],
+            mentioned_mobile_list=["13800138000"],
+        )
+        payload = notifier.assemble_data(notification)
+
+        assert payload["msgtype"] == "text"
+        assert payload["text"]["mentioned_list"] == ["user1", "user2"]
+        assert payload["text"]["mentioned_mobile_list"] == ["13800138000"]
+
+    def test_markdown_v2_payload_without_mention_params(self):
+        """Test that markdown_v2 payload does not include mentioned_list params."""
+        notifier = WeComNotifier()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # Ignore warnings for this test
+            notification = WeComSchema(
+                webhook_url="https://test.url",
+                msg_type="markdown_v2",
+                content="Hello everyone!",
+            )
+            payload = notifier.assemble_data(notification)
+
+            assert payload["msgtype"] == "markdown_v2"
+            assert "mentioned_list" not in payload["markdown_v2"]
+            assert "mentioned_mobile_list" not in payload["markdown_v2"]
 
 
 def test_article_schema():
