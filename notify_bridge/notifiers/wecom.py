@@ -7,6 +7,7 @@ This module provides the WeCom (WeChat Work) notification implementation.
 import base64
 import logging
 import re
+import warnings
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
 
@@ -18,6 +19,165 @@ from notify_bridge.components import BaseNotifier, HTTPClientConfig, MessageType
 from notify_bridge.schema import NotificationResponse, WebhookSchema
 
 logger = logging.getLogger(__name__)
+
+
+class MentionHelper:
+    """Helper class for building mention (@user) syntax in WeCom messages.
+
+    This class provides convenient methods for creating properly formatted
+    mentions in WeCom messages according to the official API documentation.
+
+    WeCom supports different mention methods:
+    1. Text messages: Use `mentioned_list` and `mentioned_mobile_list` parameters
+    2. Markdown messages: Use `<@userid>` syntax in content
+    3. Markdown V2 messages: Do NOT support mention syntax
+
+    Examples:
+        >>> from notify_bridge.notifiers.wecom import MentionHelper
+        >>> helper = MentionHelper()
+        >>>
+        >>> # For text messages
+        >>> mentions = helper.get_mention_params(["user1", "user2"], ["13800138000"])
+        >>> # Returns: {"mentioned_list": ["user1", "user2"], "mentioned_mobile_list": ["13800138000"]}
+        >>>
+        >>> # For markdown messages
+        >>> content = f"Hello {helper.mention_user('user1')}, please check this!"
+        >>> # Returns: "Hello <@user1>, please check this!"
+        >>>
+        >>> # Mention all users
+        >>> content = f"Alert: {helper.mention_all()} Attention needed!"
+        >>> # Returns: "Alert: <@all> Attention needed!"
+    """
+
+    MENTION_PATTERN = re.compile(r"<@(\w+)>")
+
+    @staticmethod
+    def mention_user(user_id: str) -> str:
+        """Create mention syntax for a specific user.
+
+        Args:
+            user_id: The WeCom user ID to mention.
+
+        Returns:
+            str: The formatted mention string like "<@user_id>".
+
+        Example:
+            >>> MentionHelper.mention_user("zhangsan")
+            '<@zhangsan>'
+        """
+        return f"<@{user_id}>"
+
+    @staticmethod
+    def mention_all() -> str:
+        """Create mention syntax for all users.
+
+        Returns:
+            str: The formatted mention string "<@all>".
+
+        Example:
+            >>> MentionHelper.mention_all()
+            '<@all>'
+        """
+        return "<@all>"
+
+    @staticmethod
+    def mention_users(user_ids: List[str]) -> str:
+        """Create mention syntax for multiple users.
+
+        Args:
+            user_ids: List of WeCom user IDs to mention.
+
+        Returns:
+            str: The formatted mention strings joined by space.
+
+        Example:
+            >>> MentionHelper.mention_users(["user1", "user2"])
+            '<@user1> <@user2>'
+        """
+        return " ".join(f"<@{uid}>" for uid in user_ids)
+
+    @staticmethod
+    def get_mention_params(
+        user_ids: Optional[List[str]] = None,
+        mobile_numbers: Optional[List[str]] = None,
+    ) -> Dict[str, List[str]]:
+        """Get mention parameters for text messages.
+
+        This method prepares the mention parameters that can be directly passed
+        to the WeCom text message API.
+
+        Args:
+            user_ids: List of WeCom user IDs to mention.
+            mobile_numbers: List of mobile phone numbers to mention.
+
+        Returns:
+            Dict with 'mentioned_list' and/or 'mentioned_mobile_list' keys.
+
+        Example:
+            >>> MentionHelper.get_mention_params(
+            ...     user_ids=["user1", "user2"],
+            ...     mobile_numbers=["13800138000"]
+            ... )
+            {'mentioned_list': ['user1', 'user2'], 'mentioned_mobile_list': ['13800138000']}
+        """
+        params: Dict[str, List[str]] = {}
+        if user_ids:
+            params["mentioned_list"] = user_ids
+        if mobile_numbers:
+            params["mentioned_mobile_list"] = mobile_numbers
+        return params
+
+    @classmethod
+    def extract_mentions(cls, content: str) -> List[str]:
+        """Extract user IDs from mention syntax in content.
+
+        Args:
+            content: The message content to parse.
+
+        Returns:
+            List of user IDs found in the content.
+
+        Example:
+            >>> MentionHelper.extract_mentions("Hello <@user1> and <@user2>!")
+            ['user1', 'user2']
+        """
+        return cls.MENTION_PATTERN.findall(content)
+
+    @classmethod
+    def has_mentions(cls, content: str) -> bool:
+        """Check if content contains mention syntax.
+
+        Args:
+            content: The message content to check.
+
+        Returns:
+            True if content contains mentions, False otherwise.
+
+        Example:
+            >>> MentionHelper.has_mentions("Hello <@user1>!")
+            True
+            >>> MentionHelper.has_mentions("Hello everyone!")
+            False
+        """
+        return bool(cls.MENTION_PATTERN.search(content))
+
+    @staticmethod
+    def build_content_with_mentions(content: str, user_ids: List[str]) -> str:
+        """Build content with mentions prepended.
+
+        Args:
+            content: The original message content.
+            user_ids: List of user IDs to mention at the beginning.
+
+        Returns:
+            str: Content with mentions prepended.
+
+        Example:
+            >>> MentionHelper.build_content_with_mentions("Please review!", ["user1", "user2"])
+            '<@user1> <@user2> Please review!'
+        """
+        mentions = " ".join(f"<@{uid}>" for uid in user_ids)
+        return f"{mentions} {content}" if mentions else content
 
 
 class Article(BaseModel):
@@ -430,6 +590,30 @@ class WeComNotifier(BaseNotifier):
 
         return content
 
+    def _validate_mentions_for_markdown(self, content: str, msg_type: MessageType) -> None:
+        """Validate mention syntax compatibility with message type.
+
+        According to WeCom documentation:
+        - Markdown supports <@userid> syntax
+        - Markdown V2 does NOT support <@userid> syntax
+
+        Args:
+            content: The message content to validate.
+            msg_type: The message type being used.
+
+        Warns:
+            UserWarning: If markdown_v2 content contains mentions which won't work.
+        """
+        if msg_type == MessageType.MARKDOWN_V2 and MentionHelper.has_mentions(content):
+            mentions = MentionHelper.extract_mentions(content)
+            warnings.warn(
+                f"Markdown V2 does not support mention syntax (<@userid>). "
+                f"Found mentions for: {mentions}. "
+                f"Use 'markdown' or 'text' message type instead.",
+                UserWarning,
+                stacklevel=2,
+            )
+
     def _build_text_payload(self, notification: WeComSchema) -> Dict[str, Any]:
         """Build text message payload.
 
@@ -465,6 +649,12 @@ class WeComNotifier(BaseNotifier):
 
         Raises:
             NotificationError: If content is missing.
+
+        Note:
+            For markdown messages, mentions can be included in the content
+            using <@userid> syntax (e.g., "Hello <@zhangsan>").
+            The mentioned_list and mentioned_mobile_list parameters are kept
+            for API compatibility but may not work as expected in markdown mode.
         """
         if not notification.content:
             raise NotificationError("content is required for markdown messages")
@@ -474,8 +664,6 @@ class WeComNotifier(BaseNotifier):
             "msgtype": "markdown",
             "markdown": {
                 "content": formatted_content,
-                "mentioned_list": notification.mentioned_list,
-                "mentioned_mobile_list": notification.mentioned_mobile_list,
             },
         }
 
@@ -508,9 +696,20 @@ class WeComNotifier(BaseNotifier):
 
         Raises:
             NotificationError: If content is missing.
+
+        Warns:
+            UserWarning: If content contains <@userid> mentions which are not
+                supported in markdown_v2 format.
+
+        Note:
+            Markdown V2 does NOT support <@userid> mention syntax.
+            If you need to mention users, use 'markdown' or 'text' message type instead.
         """
         if not notification.content:
             raise NotificationError("content is required for markdown_v2 messages")
+
+        # Validate mentions for markdown_v2 (warns if found)
+        self._validate_mentions_for_markdown(notification.content, MessageType.MARKDOWN_V2)
 
         # Escape special characters for markdown_v2
         escaped_content = self._escape_markdown_v2(notification.content)
@@ -520,8 +719,6 @@ class WeComNotifier(BaseNotifier):
             "msgtype": msg_type,
             msg_type: {
                 "content": escaped_content,
-                "mentioned_list": notification.mentioned_list,
-                "mentioned_mobile_list": notification.mentioned_mobile_list,
             },
         }
 

@@ -44,7 +44,9 @@ response = bridge.send(
 )
 ```
 
-### Text with Mentions
+### Text with Mentions (@Users)
+
+For text messages, you can mention users using the `mentioned_list` and `mentioned_mobile_list` parameters:
 
 ```python
 response = bridge.send(
@@ -58,6 +60,49 @@ response = bridge.send(
     # Or by mobile number
     # mentioned_mobile_list=["13800138000"],
 )
+```
+
+### Using MentionHelper
+
+The `MentionHelper` class provides convenient methods for building mention syntax:
+
+```python
+from notify_bridge.notifiers.wecom import MentionHelper
+
+# Mention a specific user in markdown content
+content = f"Hello {MentionHelper.mention_user('zhangsan')}, please review this!"
+# Result: "Hello <@zhangsan>, please review this!"
+
+# Mention multiple users
+mentions = MentionHelper.mention_users(["user1", "user2", "user3"])
+content = f"{mentions} Please check this urgent issue!"
+# Result: "<@user1> <@user2> <@user3> Please check this urgent issue!"
+
+# Mention all users
+content = f"{MentionHelper.mention_all()} System maintenance scheduled!"
+# Result: "<@all> System maintenance scheduled!"
+
+# Get mention parameters for text messages
+params = MentionHelper.get_mention_params(
+    user_ids=["user1", "user2"],
+    mobile_numbers=["13800138000"]
+)
+# Use with bridge.send()
+response = bridge.send(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    message="Important!",
+    msg_type="text",
+    **params
+)
+
+# Check if content contains mentions
+has_mentions = MentionHelper.has_mentions("Hello <@user1>!")  # True
+no_mentions = MentionHelper.has_mentions("Hello everyone!")   # False
+
+# Extract user IDs from content
+users = MentionHelper.extract_mentions("Hi <@admin> and <@user123>")
+# Result: ["admin", "user123"]
 ```
 
 ## Markdown Messages
@@ -89,6 +134,54 @@ response = bridge.send(
 )
 ```
 
+### Markdown with Mentions (@Users)
+
+In markdown messages, you can use the `<@userid>` syntax to mention specific users directly in the content:
+
+```python
+from notify_bridge.notifiers.wecom import MentionHelper
+
+# Using MentionHelper (recommended)
+content = f"""# Urgent Review Required
+
+Hi {MentionHelper.mention_user('zhangsan')}, 
+please review the deployment request from {MentionHelper.mention_user('lisi')}.
+
+> Priority: High
+> Deadline: EOD
+"""
+
+response = bridge.send(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    message=content,
+    msg_type="markdown"
+)
+
+# Or manually write mention syntax
+content = """# Daily Report
+
+<@all> Today's metrics:
+- New users: 100
+- Active users: 500
+
+Thanks <@manager> for the support!
+"""
+
+response = bridge.send(
+    "wecom",
+    webhook_url="YOUR_WEBHOOK_URL",
+    message=content,
+    msg_type="markdown"
+)
+```
+
+::: tip Note on Mentions in Markdown
+- Use `<@userid>` syntax to mention users in markdown content
+- `mentioned_list` and `mentioned_mobile_list` parameters are **not effective** in markdown mode
+- To mention users, include the `<@userid>` syntax directly in your content
+:::
+
 ### Markdown V2
 
 `markdown_v2` provides enhanced markdown support with better handling of underscores and URLs:
@@ -118,6 +211,13 @@ response = bridge.send(
 - Use `markdown` for standard markdown content
 - Use `markdown_v2` when your content contains underscores that should be preserved
 - In `markdown_v2`, forward slashes in URLs are automatically escaped
+:::
+
+::: warning Important: Mentions Not Supported in Markdown V2
+**Markdown V2 does NOT support the `<@userid>` mention syntax!** If you need to mention users:
+- Use `markdown` message type with `<@userid>` syntax
+- Use `text` message type with `mentioned_list` parameter
+- Using `<@userid>` in `markdown_v2` will trigger a warning
 :::
 
 ## Image Messages
