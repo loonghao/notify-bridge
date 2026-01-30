@@ -1,3 +1,9 @@
+## v0.8.0 (2026-01-30)
+
+### Feat
+
+- **wecom**: optimize @mention functionality with MentionHelper
+
 ## v0.7.0 (2025-12-24)
 
 ### Feat
