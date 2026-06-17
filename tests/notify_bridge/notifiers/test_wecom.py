@@ -64,14 +64,8 @@ class TestMentionHelper:
         assert params == {"mentioned_mobile_list": ["13800138000", "13900139000"]}
 
         # Test with both
-        params = MentionHelper.get_mention_params(
-            user_ids=["user1"],
-            mobile_numbers=["13800138000"]
-        )
-        assert params == {
-            "mentioned_list": ["user1"],
-            "mentioned_mobile_list": ["13800138000"]
-        }
+        params = MentionHelper.get_mention_params(user_ids=["user1"], mobile_numbers=["13800138000"])
+        assert params == {"mentioned_list": ["user1"], "mentioned_mobile_list": ["13800138000"]}
 
         # Test with empty lists
         params = MentionHelper.get_mention_params()

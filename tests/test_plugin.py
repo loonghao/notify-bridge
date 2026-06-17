@@ -118,8 +118,7 @@ def test_load_plugins(tmp_path, monkeypatch):
     plugin_dir = tmp_path / "plugins"
     plugin_dir.mkdir()
     plugin_file = plugin_dir / "test_plugin.py"
-    plugin_file.write_text(
-        """
+    plugin_file.write_text("""
 from notify_bridge.components import BaseNotifier, NotificationResponse
 from notify_bridge.schema import NotificationSchema
 from typing import Dict, Any, Type
@@ -139,8 +138,7 @@ class TestPlugin(BaseNotifier):
 
     def build_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return {}
-"""
-    )
+""")
 
     # Add plugin directory to Python path
     monkeypatch.syspath_prepend(str(plugin_dir))
@@ -161,8 +159,7 @@ def test_get_all_notifiers(tmp_path, monkeypatch, test_notifier):
     plugin_dir = tmp_path / "plugins"
     plugin_dir.mkdir()
     plugin_file = plugin_dir / "test_plugin.py"
-    plugin_file.write_text(
-        """
+    plugin_file.write_text("""
 from notify_bridge.components import BaseNotifier, NotificationResponse
 from notify_bridge.schema import NotificationSchema
 from typing import Dict, Any, Type
@@ -182,8 +179,7 @@ class TestPlugin(BaseNotifier):
 
     def build_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return {}
-"""
-    )
+""")
 
     # Add plugin directory to Python path
     monkeypatch.syspath_prepend(str(plugin_dir))
@@ -224,8 +220,7 @@ def test_get_notifier_class(tmp_path, monkeypatch, test_notifier):
     plugin_dir = tmp_path / "plugins"
     plugin_dir.mkdir()
     plugin_file = plugin_dir / "test_plugin.py"
-    plugin_file.write_text(
-        """
+    plugin_file.write_text("""
 from notify_bridge.components import BaseNotifier, NotificationResponse
 from notify_bridge.schema import NotificationSchema
 from typing import Dict, Any, Type
@@ -245,8 +240,7 @@ class TestPlugin(BaseNotifier):
 
     def build_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
         return {}
-"""
-    )
+""")
 
     # Add plugin directory to Python path
     monkeypatch.syspath_prepend(str(plugin_dir))

@@ -6,7 +6,6 @@ from pathlib import Path
 # Import third-party modules
 import nox
 
-
 # Constants
 PACKAGE_NAME = "notify_bridge"
 THIS_ROOT = Path(__file__).parent
