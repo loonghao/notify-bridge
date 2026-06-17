@@ -48,10 +48,7 @@ def get_notifiers_from_entry_points() -> Dict[str, Type[BaseNotifier]]:
     notifiers = {}
     try:
         entry_points = metadata.entry_points()
-        if hasattr(entry_points, "select"):  # Python 3.10+
-            notifier_eps = entry_points.select(group="notify_bridge.notifiers")
-        else:  # Python 3.9 and below
-            notifier_eps = entry_points.get("notify_bridge.notifiers", [])
+        notifier_eps = entry_points.select(group="notify_bridge.notifiers")
 
         for ep in notifier_eps:
             try:
