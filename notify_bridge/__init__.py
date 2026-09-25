@@ -1,7 +1,7 @@
 """
 Notify Bridge - A flexible data framework."""
 
-__version__ = "0.1.0"
+__version__ = "0.8.0"  # x-release-please-version
 
 # Import local modules
 # Import core components
